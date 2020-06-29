@@ -1,4 +1,4 @@
-/**
+/*
  *
  *    Copyright (c) 2020 Project CHIP Authors
  *
@@ -14,6 +14,7 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
+
 /**
  *
  *    Copyright (c) 2020 Silicon Labs
@@ -30,18 +31,39 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-/***************************************************************************/
+
 /**
  * @file
- * @brief APIs and defines for the Level Control plugin, which implements the
- *        Level Control cluster.
- ******************************************************************************/
- 
-// Rate of level control tick execution.
-// To increase tick frequency (for more granular updates of device state based
-// on level), redefine EMBER_AF_PLUGIN_LEVEL_CONTROL_TICKS_PER_SECOND.
-#ifndef EMBER_AF_PLUGIN_LEVEL_CONTROL_TICKS_PER_SECOND
-  #define EMBER_AF_PLUGIN_LEVEL_CONTROL_TICKS_PER_SECOND 32
-#endif
-#define EMBER_AF_PLUGIN_LEVEL_CONTROL_TICK_TIME \
-  (MILLISECOND_TICKS_PER_SECOND / EMBER_AF_PLUGIN_LEVEL_CONTROL_TICKS_PER_SECOND)
+ * @brief Contains definitions of an Endpoint, i.e. a collection of Clusters
+ */
+
+#ifndef ENDPOINT_H
+#define ENDPOINT_H
+
+namespace chip {
+namespace Cluster {
+
+class Endpoint
+{
+public:
+};
+
+/**
+ * @brief   Objects of this class represent UDP transport endpoints.
+ *
+ * @details
+ *  CHIP Inet Layer encapsulates methods for interacting with UDP transport
+ *  endpoints (SOCK_DGRAM sockets on Linux and BSD-derived systems) or LwIP
+ *  UDP protocol control blocks, as the system is configured accordingly.
+ */
+class AttributeStore
+{
+
+public:
+private:
+};
+
+} // namespace Cluster
+} // namespace chip
+
+#endif // ndef ENDPOINT_H

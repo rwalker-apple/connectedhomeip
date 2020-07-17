@@ -23,19 +23,21 @@
 #      must be anchored relative to the top build directory.
 #
 
-CHIP_BUILD_DATAMODEL_SOURCE_FILES                         = \
-    @top_builddir@/src/lib/datamodel/Endpoint.cpp       \
-    @top_builddir@/src/lib/datamodel/ClusterServer.cpp       \
+CHIP_BUILD_DATAMODEL_SOURCE_FILES                           = \
+    @top_builddir@/src/lib/datamodel/Endpoint.cpp             \
+    @top_builddir@/src/lib/datamodel/ClusterServer.cpp        \
+    @top_builddir@/src/lib/datamodel/ClusterLevelControl.cpp  \
     $(NULL)
 
-CHIP_BUILD_DATAMODEL_HEADER_FILES                              = \
-    @top_builddir@/src/lib/datamodel/Attribute.h         \
-    @top_builddir@/src/lib/datamodel/Cluster.h           \
-    @top_builddir@/src/lib/datamodel/ClusterServer.h         \
-    @top_builddir@/src/lib/datamodel/Endpoint.h              \
-    @top_builddir@/src/lib/datamodel/Value.h                \
-    @top_builddir@/src/lib/datamodel/Deque.h                \
-    @top_builddir@/src/lib/datamodel/Command.h    \
-    @top_builddir@/src/lib/datamodel/ClusterBasic.h    \
-    @top_builddir@/src/lib/datamodel/ClusterOnOff.h      \
+CHIP_BUILD_DATAMODEL_HEADER_FILES                        = \
+    @top_builddir@/src/lib/datamodel/Attribute.h           \
+    @top_builddir@/src/lib/datamodel/Cluster.h             \
+    @top_builddir@/src/lib/datamodel/ClusterServer.h       \
+    @top_builddir@/src/lib/datamodel/Endpoint.h            \
+    @top_builddir@/src/lib/datamodel/Value.h               \
+    @top_builddir@/src/lib/datamodel/Deque.h               \
+    @top_builddir@/src/lib/datamodel/Command.h             \
+    @top_builddir@/src/lib/datamodel/ClusterBasic.h        \
+    @top_builddir@/src/lib/datamodel/ClusterOnOff.h        \
+    @top_builddir@/src/lib/datamodel/ClusterLevelControl.h \
     $(NULL)

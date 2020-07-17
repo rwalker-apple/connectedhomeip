@@ -21,8 +21,8 @@
  *
  */
 
-#ifndef CHIPBASECLUSTER_H_
-#define CHIPBASECLUSTER_H_
+#ifndef CHIPCLUSTER_H_
+#define CHIPCLUSTER_H_
 
 #include <datamodel/Attribute.h>
 #include <datamodel/Command.h>
@@ -39,10 +39,9 @@ namespace DataModel {
 class Cluster : public Deque<Cluster>
 {
 public:
-    uint16_t mClusterId;
     Deque<Attribute> mAttrs;
 
-    Cluster(uint16_t clusterId) : Deque(this), mClusterId(clusterId), mAttrs(nullptr) {}
+    Cluster() : Deque(this), mAttrs(nullptr) {}
 
     virtual ~Cluster() {}
 
@@ -64,10 +63,17 @@ public:
      *
      * @param attrId the attribute identifer that we are looking for
      */
-    Attribute * GetAttribute(uint16_t attrId)
+    Attribute * GetAttribute(AttrId attrId) const
     {
-        return mAttrs.Find([attrId](Attribute * item) -> bool { return (item->mAttrId == attrId); });
+        return mAttrs.Find([attrId](const Attribute * item) -> bool { return (item->mId == attrId); });
     }
+
+    /**
+     * @brief
+     *   Return the ClusterId of this cluster
+     *
+     */
+    virtual ClusterId Id() const = 0;
 
     /**
      * @brief
@@ -88,7 +94,7 @@ public:
      * @param attrId the attribute identifer that should be set
      * @param value  the new value that the attribute should be updated with
      */
-    virtual CHIP_ERROR Set(uint16_t attrId, const Value & value)
+    virtual CHIP_ERROR Set(AttrId attrId, const Value & value)
     {
         /* Just hand-off to update the value internally */
         auto attr = GetAttribute(attrId);
@@ -106,7 +112,7 @@ public:
      * @param attrId the attribute identifer that should be queried
      * @param value  the value that the attribute has
      */
-    virtual CHIP_ERROR Get(uint16_t attrId, Value & value)
+    virtual CHIP_ERROR Get(AttrId attrId, Value & value) const
     {
         /* Just hand-off to update the value internally */
         auto attr = GetAttribute(attrId);
@@ -122,4 +128,4 @@ public:
 } // namespace DataModel
 } // namespace chip
 
-#endif /* CHIPBASECLUSTER_H_ */
+#endif /* CHIPCLUSTER_H_ */

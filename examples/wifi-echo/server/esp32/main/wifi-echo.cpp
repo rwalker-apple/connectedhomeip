@@ -370,11 +370,11 @@ void PrintDataModel(ClusterServer & server)
 
         /* Clusters */
         endpoint->mClusters.Foreach([](Cluster * cluster) -> void {
-            printf("    ClusterId: 0x%04x\n", cluster->mClusterId);
+            printf("    ClusterId: 0x%04x\n", cluster->Id());
 
             /* Attributes */
             cluster->mAttrs.Foreach([](Attribute * attr) -> void {
-                printf("      Attribute: 0x%04x\n", attr->mAttrId);
+                printf("      Attribute: 0x%04x\n", attr->mId);
                 char printstr[20];
                 attr->mValue.ValueToStr(printstr, sizeof(printstr));
                 printf("              Value: %s\n", printstr);

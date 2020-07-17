@@ -61,10 +61,10 @@ public:
      *     item->mMe of the match or NULL if no match.
      *  Mutation of the list during fn() should be avoided
      */
-    T * Find(std::function<bool(T *)> fn)
+    T * Find(std::function<bool(T *)> fn) const
     {
-        Deque * next = nullptr;
-        for (Deque * item = this; next != this; item = next)
+        const Deque * next = nullptr;
+        for (const Deque * item = this; next != this; item = next)
         {
             next = item->mNext;
 

@@ -42,19 +42,19 @@ void TestClusterServerBasic(nlTestSuite * inSuite, void * inContext)
     const uint8_t HWVersion          = 1;
     Value value;
 
-    chip::DataModel::ClusterServer server(ZCLVersion, applicationVersion, stackVersion, HWVersion);
+    ClusterServer server(ZCLVersion, applicationVersion, stackVersion, HWVersion);
 
     /* Validate attributes of the Base Cluster */
-    server.GetValue(1, kClusterIdBase, kAttributeIdZCLVersion, value);
+    server.GetValue(1, ClusterBasic::kId, ClusterBasic::kAttrIdZCLVersion, value);
     NL_TEST_ASSERT(inSuite, ValueToUInt8(value) == ZCLVersion);
 
-    server.GetValue(1, kClusterIdBase, kAttributeIdApplicationVersion, value);
+    server.GetValue(1, ClusterBasic::kId, ClusterBasic::kAttrIdApplicationVersion, value);
     NL_TEST_ASSERT(inSuite, ValueToUInt8(value) == applicationVersion);
 
-    server.GetValue(1, kClusterIdBase, kAttributeIdStackVersion, value);
+    server.GetValue(1, ClusterBasic::kId, ClusterBasic::kAttrIdStackVersion, value);
     NL_TEST_ASSERT(inSuite, ValueToUInt8(value) == stackVersion);
 
-    server.GetValue(1, kClusterIdBase, kAttributeIdHWVersion, value);
+    server.GetValue(1, ClusterBasic::kId, ClusterBasic::kAttrIdHWVersion, value);
     NL_TEST_ASSERT(inSuite, ValueToUInt8(value) == HWVersion);
 }
 
@@ -69,7 +69,7 @@ public:
     {
         switch (attrId)
         {
-        case kAttributeIdOnOff:
+        case kAttrIdOnOff:
             /* Set the test vector */
             mTestVector = true;
             break;
@@ -100,30 +100,30 @@ void TestClusterServerTwoEndpoints(nlTestSuite * inSuite, void * inContext)
     server.AddCluster(switch2);
 
     /* Validate attributes of the OnOff Cluster on Endpoint 1 */
-    server.GetValue(1, kClusterIdOnOff, kAttributeIdOnOff, value);
+    server.GetValue(1, ClusterOnOff::kId, ClusterOnOff::kAttrIdOnOff, value);
     NL_TEST_ASSERT(inSuite, ValueToBool(value) == false);
 
     /* Validate attributes of the OnOff Cluster on Endpoint 2 */
-    server.GetValue(2, kClusterIdOnOff, kAttributeIdOnOff, value);
+    server.GetValue(2, ClusterOnOff::kId, ClusterOnOff::kAttrIdOnOff, value);
     NL_TEST_ASSERT(inSuite, ValueToBool(value) == false);
 
     /* Test that the Set() on the base class gets redirected to the correct object */
     /* Set 'true' to switch1 */
     Cluster * cluster = switch1;
-    cluster->Set(kAttributeIdOnOff, ValueBool(true));
+    cluster->Set(ClusterOnOff::kAttrIdOnOff, ValueBool(true));
 
     /* Test the the value in the database is updated */
-    server.GetValue(1, kClusterIdOnOff, kAttributeIdOnOff, value);
+    server.GetValue(1, ClusterOnOff::kId, ClusterOnOff::kAttrIdOnOff, value);
     NL_TEST_ASSERT(inSuite, ValueToBool(value) == true);
     /* Test that the appropriate function of the derived class was executed */
     NL_TEST_ASSERT(inSuite, switch1->mTestVector == true);
 
     /* Set 'true' to switch2 */
     cluster = switch2;
-    cluster->Set(kAttributeIdOnOff, ValueBool(true));
+    cluster->Set(ClusterOnOff::kAttrIdOnOff, ValueBool(true));
 
     /* Test the the value in the database is updated */
-    server.GetValue(2, kClusterIdOnOff, kAttributeIdOnOff, value);
+    server.GetValue(2, ClusterOnOff::kId, ClusterOnOff::kAttrIdOnOff, value);
     NL_TEST_ASSERT(inSuite, ValueToBool(value) == true);
     /* Test that the appropriate function of the derived class was executed */
     NL_TEST_ASSERT(inSuite, switch2->mTestVector == true);
@@ -143,35 +143,35 @@ void TestHandleCommand(nlTestSuite * inSuite, void * inContext)
     server.AddCluster(switch1);
 
     /* Validate attributes of the OnOff Cluster on Endpoint 1 */
-    server.GetValue(1, kClusterIdOnOff, kAttributeIdOnOff, value);
+    server.GetValue(1, ClusterOnOff::kId, ClusterOnOff::kAttrIdOnOff, value);
     NL_TEST_ASSERT(inSuite, ValueToBool(value) == false);
 
     Command cmd;
     cmd.mEndpointId = 1;
-    cmd.mType = kCmdTypeCluster;
-    cmd.mClusterId = kClusterIdOnOff;
-    cmd.mDirection = kCmdDirectionClientToServer;
+    cmd.mType       = kCmdTypeCluster;
+    cmd.mClusterId  = ClusterOnOff::kId;
+    cmd.mDirection  = kCmdDirectionClientToServer;
 
     /* Validate On */
-    cmd.mId = kOnOffCmdIdOn;
+    cmd.mId = ClusterOnOff::kCmdIdOn;
     server.HandleCommand(cmd);
-    server.GetValue(1, kClusterIdOnOff, kAttributeIdOnOff, value);
+    server.GetValue(1, ClusterOnOff::kId, ClusterOnOff::kAttrIdOnOff, value);
     NL_TEST_ASSERT(inSuite, ValueToBool(value) == true);
 
     /* Validate Off */
-    cmd.mId = kOnOffCmdIdOff;
+    cmd.mId = ClusterOnOff::kCmdIdOff;
     server.HandleCommand(cmd);
-    server.GetValue(1, kClusterIdOnOff, kAttributeIdOnOff, value);
+    server.GetValue(1, ClusterOnOff::kId, ClusterOnOff::kAttrIdOnOff, value);
     NL_TEST_ASSERT(inSuite, ValueToBool(value) == false);
 
     /* Validate Toggle */
-    cmd.mId = kOnOffCmdIdToggle;
+    cmd.mId = ClusterOnOff::kCmdIdToggle;
     server.HandleCommand(cmd);
-    server.GetValue(1, kClusterIdOnOff, kAttributeIdOnOff, value);
+    server.GetValue(1, ClusterOnOff::kId, ClusterOnOff::kAttrIdOnOff, value);
     NL_TEST_ASSERT(inSuite, ValueToBool(value) == true);
-    cmd.mId = kOnOffCmdIdToggle;
+    cmd.mId = ClusterOnOff::kCmdIdToggle;
     server.HandleCommand(cmd);
-    server.GetValue(1, kClusterIdOnOff, kAttributeIdOnOff, value);
+    server.GetValue(1, ClusterOnOff::kId, ClusterOnOff::kAttrIdOnOff, value);
     NL_TEST_ASSERT(inSuite, ValueToBool(value) == false);
 }
 
@@ -184,8 +184,7 @@ int TestClusterServer(void)
      */
     static const nlTest sTests[] = { NL_TEST_DEF("TestClusterServerBasic", TestClusterServerBasic),
                                      NL_TEST_DEF("TestClusterServerTwoEndpoints", TestClusterServerTwoEndpoints),
-                                     NL_TEST_DEF("TestHandleCommand", TestHandleCommand),
-                                     NL_TEST_SENTINEL() };
+                                     NL_TEST_DEF("TestHandleCommand", TestHandleCommand), NL_TEST_SENTINEL() };
 
     nlTestSuite theSuite = {
         "TestClusterServer", &sTests[0], NULL /* setup */, NULL /* teardown */

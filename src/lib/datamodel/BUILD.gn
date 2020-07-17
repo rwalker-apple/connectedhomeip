@@ -28,8 +28,6 @@ static_library("datamodel") {
     "Deque.h",
     "Endpoint.cpp",
     "Endpoint.h",
-    "LevelControl.cpp",
-    "LevelControl.h",
     "Value.h",
   ]
 

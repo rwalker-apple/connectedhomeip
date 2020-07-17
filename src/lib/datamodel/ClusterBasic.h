@@ -29,15 +29,6 @@
 namespace chip {
 namespace DataModel {
 
-/* Cluster ID */
-static const uint16_t kClusterIdBase = 0x0000;
-
-/* Attribute IDs */
-static const uint16_t kAttributeIdZCLVersion         = 0x0000;
-static const uint16_t kAttributeIdApplicationVersion = 0x0001;
-static const uint16_t kAttributeIdStackVersion       = 0x0002;
-static const uint16_t kAttributeIdHWVersion          = 0x0003;
-
 /**
  * @brief
  *   This class implements the Base cluster as defined in the CHIP specification.
@@ -51,18 +42,33 @@ private:
     Attribute mHWVersion;
 
 public:
+    /* Cluster ID */
+    static const ClusterId kId = 0x0000;
+
+    /* Attribute IDs */
+    static const AttrId kAttrIdZCLVersion         = 0x0000;
+    static const AttrId kAttrIdApplicationVersion = 0x0001;
+    static const AttrId kAttrIdStackVersion       = 0x0002;
+    static const AttrId kAttrIdHWVersion          = 0x0003;
+
     ClusterBasic(uint8_t ZCLVersion, uint8_t applicationVersion, uint8_t stackVersion, uint8_t HWVersion) :
-        Cluster(kClusterIdBase),
         /* Attributes */
-        mZCLVersion(kAttributeIdZCLVersion, ValueUInt8(ZCLVersion)),
-        mApplicationVersion(kAttributeIdApplicationVersion, ValueUInt8(applicationVersion)),
-        mStackVersion(kAttributeIdStackVersion, ValueUInt8(stackVersion)), mHWVersion(kAttributeIdHWVersion, ValueUInt8(HWVersion))
+        mZCLVersion(kAttrIdZCLVersion, ValueUInt8(ZCLVersion)),
+        mApplicationVersion(kAttrIdApplicationVersion, ValueUInt8(applicationVersion)),
+        mStackVersion(kAttrIdStackVersion, ValueUInt8(stackVersion)), mHWVersion(kAttrIdHWVersion, ValueUInt8(HWVersion))
     {
         AddAttribute(&mZCLVersion);
         AddAttribute(&mApplicationVersion);
         AddAttribute(&mStackVersion);
         AddAttribute(&mHWVersion);
     }
+
+    /**
+     * @brief
+     *   Return the ClusterId of this cluster
+     *
+     */
+    virtual ClusterId Id() const { return kId; }
 };
 
 } // namespace DataModel

@@ -68,9 +68,9 @@ public:
      *
      * @param clusterId the cluster identifer that we are looking for
      */
-    Cluster * GetCluster(uint8_t clusterId)
+    Cluster * GetCluster(ClusterId id)
     {
-        return mClusters.Find([clusterId](Cluster * item) -> bool { return (item->mClusterId == clusterId); });
+        return mClusters.Find([id](Cluster * item) -> bool { return (item->Id() == id); });
     }
 };
 

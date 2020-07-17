@@ -24,8 +24,14 @@
 #ifndef CHIPCOMMAND_H_
 #define CHIPCOMMAND_H_
 
+#include <stdint.h>
+
 namespace chip {
 namespace DataModel {
+
+typedef uint16_t ClusterId;
+typedef uint16_t CmdId;
+typedef uint16_t MfgCode;
 
 enum CmdTypes
 {
@@ -47,16 +53,17 @@ public:
     /* The type of command, global, cluster-specific or manufacturer-specific */
     CmdTypes mType;
     /* The command identifier */
-    uint16_t mId;
+    CmdId mId;
     /* The endpoint this command is for */
     uint8_t mEndpointId;
     /* The direction of the command */
     CmdDirection mDirection;
-    union {
+    union
+    {
         /* The ClusterId, if this is cluster-specific command */
-        uint16_t mClusterId;
+        ClusterId mClusterId;
         /* The MfgCode, if this is manufacturer-specific command */
-        uint16_t mMfgCode;
+        MfgCode mMfgCode;
     };
 };
 

@@ -26,7 +26,6 @@
 CHIP_BUILD_DATAMODEL_SOURCE_FILES                           = \
     @top_builddir@/src/lib/datamodel/Endpoint.cpp             \
     @top_builddir@/src/lib/datamodel/ClusterServer.cpp        \
-    @top_builddir@/src/lib/datamodel/ClusterLevelControl.cpp  \
     $(NULL)
 
 CHIP_BUILD_DATAMODEL_HEADER_FILES                        = \
@@ -39,5 +38,4 @@ CHIP_BUILD_DATAMODEL_HEADER_FILES                        = \
     @top_builddir@/src/lib/datamodel/Command.h             \
     @top_builddir@/src/lib/datamodel/ClusterBasic.h        \
     @top_builddir@/src/lib/datamodel/ClusterOnOff.h        \
-    @top_builddir@/src/lib/datamodel/ClusterLevelControl.h \
     $(NULL)

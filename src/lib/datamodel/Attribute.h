@@ -32,6 +32,8 @@
 namespace chip {
 namespace DataModel {
 
+typedef uint16_t AttrId;
+
 /**
  * @brief
  *   This class implements a single attribute.
@@ -43,15 +45,15 @@ private:
     friend class Cluster;
 
 public:
-    uint16_t mAttrId;
+    const AttrId mId;
     Value mValue;
     Value mMin;
     Value mMax;
 
-    Attribute(uint16_t attrId, ValueTypes type) : mDeque(this), mAttrId(attrId), mValue(type), mMin(type), mMax(type) {}
-    Attribute(uint16_t attrId, Value value) : mDeque(this), mAttrId(attrId), mValue(value), mMin(value.mType), mMax(value.mType) {}
-    Attribute(uint16_t attrId, ValueTypes type, uint64_t min, uint64_t max) :
-        mDeque(this), mAttrId(attrId), mValue(type), mMin(type, min), mMax(type, max)
+    Attribute(AttrId id, ValueTypes type) : mDeque(this), mId(id), mValue(type), mMin(type), mMax(type) {}
+    Attribute(AttrId id, Value value) : mDeque(this), mId(id), mValue(value), mMin(value.mType), mMax(value.mType) {}
+    Attribute(AttrId id, ValueTypes type, uint64_t min, uint64_t max) :
+        mDeque(this), mId(id), mValue(type), mMin(type, min), mMax(type, max)
     {}
 
     /**
@@ -101,13 +103,11 @@ protected:
         case kCHIPValueType_UInt32:
         case kCHIPValueType_UInt64:
             return withinRange(value.Int64);
-            break;
         case kCHIPValueType_Bool:
             return true;
         default:
             return false;
         }
-        return false;
     }
 };
 

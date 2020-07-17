@@ -90,7 +90,7 @@ public:
      *
      * @return pointer to the Cluster or null if not found
      */
-    Cluster * GetCluster(uint8_t endPointId, uint16_t clusterId)
+    Cluster * GetCluster(uint8_t endPointId, ClusterId clusterId)
     {
         Cluster * cluster = nullptr;
 
@@ -112,7 +112,7 @@ public:
      *
      * @return pointer to the Attribute or null if not found
      */
-    Attribute * GetAttribute(uint8_t endPointId, uint16_t clusterId, uint16_t attrId)
+    Attribute * GetAttribute(uint8_t endPointId, ClusterId clusterId, AttrId attrId)
     {
         Attribute * attr = nullptr;
 
@@ -135,7 +135,7 @@ public:
      *
      * @return CHIP_NO_ERROR on success or a failure-specific error code otherwise
      */
-    CHIP_ERROR SetValue(uint8_t endPointId, uint16_t clusterId, uint16_t attrId, Value & value)
+    CHIP_ERROR SetValue(uint8_t endPointId, ClusterId clusterId, AttrId attrId, Value & value)
     {
         auto endpoint = GetEndpoint(endPointId);
 
@@ -162,7 +162,7 @@ public:
      *
      * @return CHIP_NO_ERROR on success or a failure-specific error code otherwise
      */
-    CHIP_ERROR GetValue(uint8_t endPointId, uint16_t clusterId, uint16_t attrId, Value & value)
+    CHIP_ERROR GetValue(uint8_t endPointId, ClusterId clusterId, AttrId attrId, Value & value)
     {
         auto endpoint = GetEndpoint(endPointId);
 

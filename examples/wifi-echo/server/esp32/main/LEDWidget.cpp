@@ -31,7 +31,6 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
-#include <lib/datamodel/ClusterOnOff.h>
 
 #if CONFIG_HAVE_DISPLAY
 // The Y position of the LED Status message on screen as a
@@ -72,12 +71,12 @@ void LEDWidget::Set(bool state)
 {
     mBlinkOnTimeMS = mBlinkOffTimeMS = 0;
     DoSet(state);
-    Cluster::Set(kAttributeIdOnOff, ValueBool(state));
+    Cluster::Set(kAttrIdOnOff, ValueBool(state));
 }
 
-CHIP_ERROR LEDWidget::Set(uint16_t attrId, const Value & value)
+CHIP_ERROR LEDWidget::Set(AttrId attrId, const Value & value)
 {
-    if (attrId == kAttributeIdOnOff)
+    if (attrId == kAttrIdOnOff)
     {
         printf("Setting value to %d\n", ValueToBool(value));
         DoSet(ValueToBool(value));

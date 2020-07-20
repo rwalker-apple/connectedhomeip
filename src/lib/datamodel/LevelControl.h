@@ -56,29 +56,28 @@ public:
     static const ClusterId kId = 0x0008;
 
     /* Attribute IDs */
-    static const AttributeId kCurrentLevel        = 0x0000;
-    static const AttributeId kRemainingTime       = 0x0001;
-    static const AttributeId kOnOffTransitionTime = 0x0010;
-    static const AttributeId kOnLevel             = 0x0011;
-    static const AttributeId kOnTransitionTime    = 0x0012;
-    static const AttributeId kOffTransitionTime   = 0x0013;
-    static const AttributeId kDefaultMoveRate     = 0x0014;
+    static const AttrId kCurrentLevel        = 0x0000;
+    static const AttrId kRemainingTime       = 0x0001;
+    static const AttrId kOnOffTransitionTime = 0x0010;
+    static const AttrId kOnLevel             = 0x0011;
+    static const AttrId kOnTransitionTime    = 0x0012;
+    static const AttrId kOffTransitionTime   = 0x0013;
+    static const AttrId kDefaultMoveRate     = 0x0014;
 
     /* Command IDs */
-    static const uint16_t kOnOffCmdIdOff            = 0x00;
-    static const uint16_t kOnOffCmdIdOn             = 0x01;
-    static const uint16_t kOnOffCmdIdToggle         = 0x02;
-    static const uint16_t kOnOffCmdIdOffWithEffect  = 0x40;
-    static const uint16_t kOnOffCmdIdOffWithRecall  = 0x41;
-    static const uint16_t kOnOffCmdIdOnWithTimedOff = 0x42;
+    static const CmdId kOff            = 0x00;
+    static const CmdId kOn             = 0x01;
+    static const CmdId kToggle         = 0x02;
+    static const CmdId kOffWithEffect  = 0x40;
+    static const CmdId kOffWithRecall  = 0x41;
+    static const CmdId kOnWithTimedOff = 0x42;
 
     LevelControl() :
-        mCurrentLevel(kCurrentLevel, kCHIPValueType_Uint8, 0, 0xfe),
-        mRemainingTime(kAttributeIdGlobalSceneControl, kCHIPValueType_Uint16),
-        mOnOffTransitionTime(kOnOffTransitionTime, kCHIPValueType_UInt16), mOnLevel(kOnLevel, kCHIPValueType_Uint8, 0x01, 0xff),
-        mOnTransitionTime(kOnTransitionTime, kCHIPValueType_UInt16, 0x0, 0xfffe),
-        mOffTransitionTime(kOffTransitionTime, kCHIPValueType_UInt16, 0x0, 0xfffe),
-        mDefaultMoveRate(kDefaultMoveRate, kCHIPValueType_UInt16, 0x0, 0xfe)
+        mCurrentLevel(kCurrentLevel, kValueType_UInt8, 0, 0xfe), mRemainingTime(kRemainingTime, kValueType_UInt16),
+        mOnOffTransitionTime(kOnOffTransitionTime, kValueType_UInt16), mOnLevel(kOnLevel, kValueType_UInt8, 0x01, 0xff),
+        mOnTransitionTime(kOnTransitionTime, kValueType_UInt16, 0x0, 0xfffe),
+        mOffTransitionTime(kOffTransitionTime, kValueType_UInt16, 0x0, 0xfffe),
+        mDefaultMoveRate(kDefaultMoveRate, kValueType_UInt16, 0x0, 0xfe)
     {
         AddAttribute(&mCurrentLevel);
         AddAttribute(&mRemainingTime);
@@ -94,7 +93,7 @@ public:
      *   Return the ClusterId of this cluster
      *
      */
-    virtual ClusterId Id(const Command & cmd) { return kId; }
+    virtual ClusterId Id() const { return kId; }
 
     /**
      * @brief
@@ -102,51 +101,10 @@ public:
      *
      */
 
-    //    /**
-    //     * @brief
-    //     *   Handle the off command. This command is already handled in the ClusterOnOff class, and the
-    //     *   Cluster's Set() method will be called with the appropriate value. Applications may choose
-    //     *   to override this handling if required.
-    //     *
-    //     * @param cmd the command to handle
-    //     *
-    //     * @return CHIP_NO_ERROR on success or a failure-specific error code otherwise
-    //     */
-    //    virtual CHIP_ERROR HandleCommandOff(const Command & cmd) { return Set(kAttributeIdOnOff, ValueBool(false)); }
-    //
-    //    /**
-    //     * @brief
-    //     *   Handle the on command. This command is already handled in the ClusterOnOff class, and the
-    //     *   Cluster's Set() method will be called with the appropriate value. Applications may choose
-    //     *   to override this handling if required.
-    //     *
-    //     * @param cmd the command to handle
-    //     *
-    //     * @return CHIP_NO_ERROR on success or a failure-specific error code otherwise
-    //     */
-    //    virtual CHIP_ERROR HandleCommandOn(const Command & cmd) { return Set(kAttributeIdOnOff, ValueBool(true)); }
-    //
-    //    /**
-    //     * @brief
-    //     *   Handle the toggle command. This command is already handled in the ClusterOnOff class, and
-    //     *   the Cluster's Set() method will be called with the appropriate value. Applications may
-    //     *   choose to override this handling if required.
-    //     *
-    //     * @param cmd the command to handle
-    //     *
-    //     * @return CHIP_NO_ERROR on success or a failure-specific error code otherwise
-    //     */
-    //    virtual CHIP_ERROR HandleCommandToggle(const Command & cmd)
-    //    {
-    //        Value currentVal;
-    //        Get(kAttributeIdOnOff, currentVal);
-    //        return Set(kAttributeIdOnOff, ValueBool(!ValueToBool(currentVal)));
-    //    }
-    //
-
     /**
      * @brief
-     *   Handle commands for LevelControl. Applications may choose to override this handling if required.
+     *   Handle commands for LevelControl. Applications may choose to override this
+     *   handling if required.
      *
      * @param cmd the command to handle
      *
@@ -156,21 +114,18 @@ public:
     {
         switch (cmd.mId)
         {
-        case kOnOffCmdIdOff:
-            HandleCommandOff(cmd);
-            break;
-        case kOnOffCmdIdOn:
-            HandleCommandOn(cmd);
-            break;
-        case kOnOffCmdIdToggle:
-            HandleCommandToggle(cmd);
-            break;
+        case kOff:
+        case kOn:
+        case kToggle:
+        case kOffWithEffect:
+        case kOffWithRecall:
+        case kOnWithTimedOff:
+            return CHIP_ERROR_INTERNAL;
+
         default:
             /* Unsupported */
             return CHIP_ERROR_INTERNAL;
-            break;
         }
-        return CHIP_ERROR_INTERNAL;
     }
 };
 
@@ -178,11 +133,3 @@ public:
 } // namespace chip
 
 #endif /* CHIPLEVELCONTROL_H_ */
-
-// Rate of level control tick execution.
-// To increase tick frequency (for more granular updates of device state based
-// on level), redefine EMBER_AF_PLUGIN_LEVEL_CONTROL_TICKS_PER_SECOND.
-#ifndef EMBER_AF_PLUGIN_LEVEL_CONTROL_TICKS_PER_SECOND
-#define EMBER_AF_PLUGIN_LEVEL_CONTROL_TICKS_PER_SECOND 32
-#endif
-#define EMBER_AF_PLUGIN_LEVEL_CONTROL_TICK_TIME (MILLISECOND_TICKS_PER_SECOND / EMBER_AF_PLUGIN_LEVEL_CONTROL_TICKS_PER_SECOND)

@@ -26,6 +26,7 @@
 
 #include <datamodel/ClusterOnOff.h>
 #include <datamodel/ClusterServer.h>
+#include <datamodel/LevelControl.h>
 #include <nlassert.h>
 #include <nlunit-test.h>
 #include <support/TestUtils.h>

@@ -61,8 +61,8 @@ public:
     static const CmdId kCmdIdOnWithTimedOff = 0x42;
 
     ClusterOnOff() :
-        mOnOff(kAttrIdOnOff, kCHIPValueType_Bool), mGlobalSceneControl(kAttrIdGlobalSceneControl, kCHIPValueType_Bool),
-        mOnTime(kAttrIdOnTime, kCHIPValueType_UInt16), mOffWaitTime(kAttrIdOffWaitTime, kCHIPValueType_UInt16)
+        mOnOff(kAttrIdOnOff, kValueType_Bool), mGlobalSceneControl(kAttrIdGlobalSceneControl, kValueType_Bool),
+        mOnTime(kAttrIdOnTime, kValueType_UInt16), mOffWaitTime(kAttrIdOffWaitTime, kValueType_UInt16)
     {
         AddAttribute(&mOnOff);
         AddAttribute(&mGlobalSceneControl);

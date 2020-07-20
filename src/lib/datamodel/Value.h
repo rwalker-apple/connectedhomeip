@@ -34,28 +34,28 @@ namespace DataModel {
 
 enum ValueTypes
 {
-    kCHIPValueType_NotSpecified = -1,
-    kCHIPValueType_Int8,
-    kCHIPValueType_Int16,
-    kCHIPValueType_Int32,
-    kCHIPValueType_Int64,
-    kCHIPValueType_UInt8,
-    kCHIPValueType_UInt16,
-    kCHIPValueType_UInt32,
-    kCHIPValueType_UInt64,
-    kCHIPValueType_Bool,
-    kCHIPValueType_FloatingPointNumber32,
-    kCHIPValueType_FloatingPointNumber64,
-    kCHIPValueType_UTF8String_1ByteLength,
-    kCHIPValueType_UTF8String_2ByteLength,
-    kCHIPValueType_UTF8String_4ByteLength,
-    kCHIPValueType_UTF8String_8ByteLength,
-    kCHIPValueType_ByteString_1ByteLength,
-    kCHIPValueType_ByteString_2ByteLength,
-    kCHIPValueType_ByteString_4ByteLength,
-    kCHIPValueType_ByteString_8ByteLength,
-    kCHIPValueType_Null,
-    kCHIPValueType_EndOfContainer,
+    kValueType_NotSpecified = -1,
+    kValueType_Int8,
+    kValueType_Int16,
+    kValueType_Int32,
+    kValueType_Int64,
+    kValueType_UInt8,
+    kValueType_UInt16,
+    kValueType_UInt32,
+    kValueType_UInt64,
+    kValueType_Bool,
+    kValueType_FloatingPointNumber32,
+    kValueType_FloatingPointNumber64,
+    kValueType_UTF8String_1ByteLength,
+    kValueType_UTF8String_2ByteLength,
+    kValueType_UTF8String_4ByteLength,
+    kValueType_UTF8String_8ByteLength,
+    kValueType_ByteString_1ByteLength,
+    kValueType_ByteString_2ByteLength,
+    kValueType_ByteString_4ByteLength,
+    kValueType_ByteString_8ByteLength,
+    kValueType_Null,
+    kValueType_EndOfContainer,
 };
 
 class Value
@@ -74,18 +74,18 @@ public:
     {
         switch (mType)
         {
-        case kCHIPValueType_Int8:
-        case kCHIPValueType_Int16:
-        case kCHIPValueType_Int32:
-        case kCHIPValueType_Int64:
-        case kCHIPValueType_UInt8:
-        case kCHIPValueType_UInt16:
-        case kCHIPValueType_UInt32:
-        case kCHIPValueType_UInt64:
+        case kValueType_Int8:
+        case kValueType_Int16:
+        case kValueType_Int32:
+        case kValueType_Int64:
+        case kValueType_UInt8:
+        case kValueType_UInt16:
+        case kValueType_UInt32:
+        case kValueType_UInt64:
             snprintf(buf, maxlen, "%lld", Int64);
             return;
             break;
-        case kCHIPValueType_Bool:
+        case kValueType_Bool:
             snprintf(buf, maxlen, "%s", Int64 ? "true" : "false");
             return;
         default:
@@ -99,7 +99,7 @@ public:
 
 static inline Value ValueBool(bool b)
 {
-    return Value(kCHIPValueType_Bool, (uint64_t) b);
+    return Value(kValueType_Bool, (uint64_t) b);
 }
 
 static inline bool ValueToBool(Value v)
@@ -109,7 +109,7 @@ static inline bool ValueToBool(Value v)
 
 static inline Value ValueUInt8(uint8_t b)
 {
-    return Value(kCHIPValueType_UInt8, (uint64_t) b);
+    return Value(kValueType_UInt8, (uint64_t) b);
 }
 
 static inline uint8_t ValueToUInt8(Value v)

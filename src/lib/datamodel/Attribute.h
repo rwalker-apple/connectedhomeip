@@ -94,16 +94,16 @@ protected:
     {
         switch (mValue.mType)
         {
-        case kCHIPValueType_Int8:
-        case kCHIPValueType_Int16:
-        case kCHIPValueType_Int32:
-        case kCHIPValueType_Int64:
-        case kCHIPValueType_UInt8:
-        case kCHIPValueType_UInt16:
-        case kCHIPValueType_UInt32:
-        case kCHIPValueType_UInt64:
+        case kValueType_Int8:
+        case kValueType_Int16:
+        case kValueType_Int32:
+        case kValueType_Int64:
+        case kValueType_UInt8:
+        case kValueType_UInt16:
+        case kValueType_UInt32:
+        case kValueType_UInt64:
             return withinRange(value.Int64);
-        case kCHIPValueType_Bool:
+        case kValueType_Bool:
             return true;
         default:
             return false;

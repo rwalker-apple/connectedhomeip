@@ -29,6 +29,8 @@ static_library("datamodel") {
     "Endpoint.cpp",
     "Endpoint.h",
     "Value.h",
+    "LevelControl.h",
+    "LevelControl.cpp",
   ]
 
   public_deps = [

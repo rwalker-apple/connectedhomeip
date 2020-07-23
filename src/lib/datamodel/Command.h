@@ -65,6 +65,9 @@ public:
         /* The MfgCode, if this is manufacturer-specific command */
         MfgCode mMfgCode;
     };
+    uint8_t * buffer;
+    uint16_t bufLen;
+    uint16_t payloadStartIndex;
 };
 
 } // namespace DataModel

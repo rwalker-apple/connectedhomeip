@@ -33,6 +33,9 @@
 
 #include <datamodel/Cluster.h>
 
+#include <core/CHIPCallback.h>
+#include <system/SystemLayer.h>
+
 namespace chip {
 namespace DataModel {
 
@@ -51,42 +54,92 @@ private:
     Attribute mOffTransitionTime;
     Attribute mDefaultMoveRate;
 
+    // internal state for level control transitions
+    struct
+    {
+        CmdId commandId;           // command that initated the transition
+        uint8_t moveToLevel;       // target level
+        bool increasing;           // increasing or decreasing
+        bool useOnLevel;           // whether onLevel should be considered (TODO: always false)
+        uint8_t onLevel;           // read from the OnLevel attribute when command is initiated (TODO: but then discarded)
+        uint16_t storedLevel;      // stored current level in case of OnOff<->LevelControl effect
+        uint32_t eventDurationMs;  // time duration
+        uint32_t transitionTimeMs; // total transition time
+        uint32_t elapsedTimeMs;    // time since transition was initiated
+    } mState;
+
+    // timer stuff
+    Callback::Callback<> mCallback;
+    static void Timer(LevelControl *);
+    void Step();
+
+    System::Layer * mSystemLayer;
+
+    // internal functions
+    void updateCoupledColorTemp();
+    void tickCallback();
+    void schedule(uint32_t durationMs);
+    void deactivate();
+    void writeRemainingTime(uint16_t remainingTimeMs);
+    void setOnOffValue(bool onOff);
+    bool shouldExecuteIfOff(CmdId cmdId, uint8_t optionMask, uint8_t optionOverride);
+
 public:
     /* Cluster ID */
     static const ClusterId kId = 0x0008;
 
     /* Attribute IDs */
-    static const AttrId kCurrentLevel        = 0x0000;
-    static const AttrId kRemainingTime       = 0x0001;
-    static const AttrId kOnOffTransitionTime = 0x0010;
-    static const AttrId kOnLevel             = 0x0011;
-    static const AttrId kOnTransitionTime    = 0x0012;
-    static const AttrId kOffTransitionTime   = 0x0013;
-    static const AttrId kDefaultMoveRate     = 0x0014;
+    static const AttrId kAttrIdCurrentLevel        = 0x0000;
+    static const AttrId kAttrIdRemainingTime       = 0x0001;
+    static const AttrId kAttrIdOptions             = 0x000F;
+    static const AttrId kAttrIdOnOffTransitionTime = 0x0010;
+    static const AttrId kAttrIdOnLevel             = 0x0011;
+    static const AttrId kAttrIdOnTransitionTime    = 0x0012;
+    static const AttrId kAttrIdOffTransitionTime   = 0x0013;
+    static const AttrId kAttrIdDefaultMoveRate     = 0x0014;
 
     /* Command IDs */
-    static const CmdId kOff            = 0x00;
-    static const CmdId kOn             = 0x01;
-    static const CmdId kToggle         = 0x02;
-    static const CmdId kOffWithEffect  = 0x40;
-    static const CmdId kOffWithRecall  = 0x41;
-    static const CmdId kOnWithTimedOff = 0x42;
+    static const CmdId kCmdIdMoveToLevel          = 0x00;
+    static const CmdId kCmdIdMove                 = 0x01;
+    static const CmdId kCmdIdStep                 = 0x02;
+    static const CmdId kCmdIdStop                 = 0x03;
+    static const CmdId kCmdIdMoveToLevelWithOnOff = 0x04;
+    static const CmdId kCmdIdMoveWithOnOff        = 0x05;
+    static const CmdId kCmdIdStepWithOnOff        = 0x06;
+    static const CmdId kCmdIdStopWithOnOff        = 0x07;
 
-    LevelControl() :
-        mCurrentLevel(kCurrentLevel, kValueType_UInt8, 0, 0xfe), mRemainingTime(kRemainingTime, kValueType_UInt16),
-        mOnOffTransitionTime(kOnOffTransitionTime, kValueType_UInt16), mOnLevel(kOnLevel, kValueType_UInt8, 0x01, 0xff),
-        mOnTransitionTime(kOnTransitionTime, kValueType_UInt16, 0x0, 0xfffe),
-        mOffTransitionTime(kOffTransitionTime, kValueType_UInt16, 0x0, 0xfffe),
-        mDefaultMoveRate(kDefaultMoveRate, kValueType_UInt16, 0x0, 0xfe)
+    /* options bits */
+    static const uint8_t kOptionsExecuteIfOff           = 0x01;
+    static const uint8_t kOptionsCoupleColorTempToLevel = 0x02;
+
+    /* other definitions */
+    static const uint8_t kMaxLevel            = 0xff;
+    static const uint8_t kMinLevel            = 0x00;
+    static const uint16_t kInvalidStoredLevel = 0xffff;
+
+    LevelControl(Attribute * options) :
+        mCurrentLevel(kAttrIdCurrentLevel, kValueType_UInt8, kMaxLevel, kMinLevel),
+        mRemainingTime(kAttrIdRemainingTime, kValueType_UInt16),
+        mOnOffTransitionTime(kAttrIdOnOffTransitionTime, kValueType_UInt16), mOnLevel(kAttrIdOnLevel, kValueType_UInt8, 0x01, 0xff),
+        mOnTransitionTime(kAttrIdOnTransitionTime, kValueType_UInt16, 0x0, 0xfffe),
+        mOffTransitionTime(kAttrIdOffTransitionTime, kValueType_UInt16, 0x0, 0xfffe),
+        mDefaultMoveRate(kAttrIdDefaultMoveRate, kValueType_UInt16, 0x0, 0xfe),
+        mCallback(reinterpret_cast<Callback::CallFn>(Timer), this)
     {
         AddAttribute(&mCurrentLevel);
         AddAttribute(&mRemainingTime);
+        if (nullptr != options)
+        {
+            AddAttribute(options);
+        }
         AddAttribute(&mOnOffTransitionTime);
         AddAttribute(&mOnLevel);
         AddAttribute(&mOnTransitionTime);
         AddAttribute(&mOffTransitionTime);
         AddAttribute(&mDefaultMoveRate);
     }
+
+    LevelControl() : LevelControl(nullptr) {}
 
     /**
      * @brief
@@ -97,12 +150,6 @@ public:
 
     /**
      * @brief
-     *   Return the ClusterId of this cluster
-     *
-     */
-
-    /**
-     * @brief
      *   Handle commands for LevelControl. Applications may choose to override this
      *   handling if required.
      *
@@ -110,23 +157,7 @@ public:
      *
      * @return CHIP_NO_ERROR on success or a failure-specific error code otherwise
      */
-    virtual CHIP_ERROR HandleCommand(const Command & cmd)
-    {
-        switch (cmd.mId)
-        {
-        case kOff:
-        case kOn:
-        case kToggle:
-        case kOffWithEffect:
-        case kOffWithRecall:
-        case kOnWithTimedOff:
-            return CHIP_ERROR_INTERNAL;
-
-        default:
-            /* Unsupported */
-            return CHIP_ERROR_INTERNAL;
-        }
-    }
+    virtual CHIP_ERROR HandleCommand(const Command & cmd);
 };
 
 } // namespace DataModel

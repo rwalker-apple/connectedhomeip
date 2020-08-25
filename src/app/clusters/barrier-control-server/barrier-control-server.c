@@ -42,7 +42,7 @@
 #include "af.h"
 
 // We need this for initializating default reporting configurations.
-#include "app/framework/plugin/reporting/reporting.h"
+//#include "app/framework/plugin/reporting/reporting.h"
 
 typedef struct
 {

@@ -130,13 +130,6 @@ CHIP_ERROR ChipMessageLayer::Init(InitContext * context)
     mBle = context->ble;
 #endif
 
-#if CHIP_CONFIG_PROVIDE_OBSOLESCENT_INTERFACES
-    if (SystemLayer == NULL)
-    {
-        SystemLayer = Inet->SystemLayer();
-    }
-#endif // CHIP_CONFIG_PROVIDE_OBSOLESCENT_INTERFACES
-
     FabricState                           = context->fabricState;
     FabricState->MessageLayer             = this;
     OnMessageReceived                     = NULL;
@@ -147,7 +140,6 @@ CHIP_ERROR ChipMessageLayer::Init(InitContext * context)
     OnAcceptError                         = NULL;
     OnMessageLayerActivityChange          = NULL;
     memset(mConPool, 0, sizeof(mConPool));
-    memset(mTunnelPool, 0, sizeof(mTunnelPool));
     AppState               = NULL;
     ExchangeMgr            = NULL;
     SecurityMgr            = NULL;
@@ -246,47 +238,12 @@ CHIP_ERROR ChipMessageLayer::Shutdown()
     OnAcceptError                 = NULL;
     OnMessageLayerActivityChange  = NULL;
     memset(mConPool, 0, sizeof(mConPool));
-    memset(mTunnelPool, 0, sizeof(mTunnelPool));
     ExchangeMgr = NULL;
     AppState    = NULL;
     mFlags      = 0;
 
     return CHIP_NO_ERROR;
 }
-
-#if CHIP_CONFIG_ENABLE_TUNNELING
-/**
- *  Send a tunneled IPv6 data message over UDP.
- *
- *  @param[in] msgInfo          A pointer to a ChipMessageInfo object.
- *
- *  @param[in] destAddr         IPAddress of the UDP tunnel destination.
- *
- *  @param[in] msgBuf           A pointer to the PacketBuffer object holding the packet to send.
- *
- *  @retval  #CHIP_NO_ERROR                    on successfully sending the message down to the network
- *                                              layer.
- *  @retval  #CHIP_ERROR_INVALID_ADDRESS       if the destAddr is not specified or cannot be determined
- *                                              from destination node id.
- *  @retval  errors generated from the lower Inet layer UDP endpoint during sending.
- *
- */
-CHIP_ERROR ChipMessageLayer::SendUDPTunneledMessage(const IPAddress & destAddr, ChipMessageInfo * msgInfo, PacketBuffer * msgBuf)
-{
-    CHIP_ERROR res = CHIP_NO_ERROR;
-
-    // Set message version to V2
-    msgInfo->MessageVersion = kChipMessageVersion_V2;
-
-    // Set the tunneling flag
-    msgInfo->Flags |= kChipMessageFlag_TunneledData;
-
-    res    = SendMessage(destAddr, msgInfo, msgBuf);
-    msgBuf = NULL;
-
-    return res;
-}
-#endif // CHIP_CONFIG_ENABLE_TUNNELING
 
 /**
  *  Encode a CHIP Message layer header into an PacketBuffer.
@@ -566,7 +523,7 @@ CHIP_ERROR ChipMessageLayer::SendMessage(const IPAddress & destAddr, uint16_t de
     VerifyOrExit(!mDropMessage, err = CHIP_NO_ERROR);
 
     // Drop the message and return. Free the buffer if it does not need to be
-    // retained(e.g., for WRM retransmissions).
+    // retained(e.g., for RMP retransmissions).
     CHIP_FAULT_INJECT(FaultInjection::kFault_DropOutgoingUDPMsg, ExitNow(err = CHIP_NO_ERROR););
 
     // Select a UDP endpoint object for sending a message based on the destination address type
@@ -906,90 +863,6 @@ void ChipMessageLayer::GetIncomingTCPConCount(const IPAddress & peerAddr, uint16
     }
 }
 
-/**
- *  Create a new ChipConnectionTunnel object from a pool.
- *
- *  @return  a pointer to the newly created ChipConnectionTunnel object if successful,
- *           otherwise NULL.
- *
- */
-ChipConnectionTunnel * ChipMessageLayer::NewConnectionTunnel()
-{
-    ChipConnectionTunnel * tun = (ChipConnectionTunnel *) mTunnelPool;
-    for (int i = 0; i < CHIP_CONFIG_MAX_TUNNELS; i++, tun++)
-    {
-        if (tun->IsInUse() == false)
-        {
-            tun->Init(this);
-            return tun;
-        }
-    }
-
-    ChipLogError(ExchangeManager, "New tun FAILED");
-    return NULL;
-}
-
-/**
- *  Create a ChipConnectionTunnel by coupling together two specified ChipConnections.
-    On successful creation, the TCPEndPoints corresponding to the component ChipConnection
-    objects are handed over to the ChipConnectionTunnel, otherwise the ChipConnections are
-    closed.
- *
- *  @param[out]    tunPtr                 A pointer to pointer of a ChipConnectionTunnel object.
- *
- *  @param[in]     conOne                 A reference to the first ChipConnection object.
- *
- *  @param[in]     conTwo                 A reference to the second ChipConnection object.
- *
- *  @param[in]     inactivityTimeoutMS    The maximum time in milliseconds that the CHIP
- *                                        connection tunnel could be idle.
- *
- *  @retval    #CHIP_NO_ERROR            on successful creation of the ChipConnectionTunnel.
- *  @retval    #CHIP_ERROR_INCORRECT_STATE if the component ChipConnection objects of the
- *                                          ChipConnectionTunnel is not in the correct state.
- *  @retval    #CHIP_ERROR_NO_MEMORY       if a new ChipConnectionTunnel object cannot be created.
- *
- */
-CHIP_ERROR ChipMessageLayer::CreateTunnel(ChipConnectionTunnel ** tunPtr, ChipConnection & conOne, ChipConnection & conTwo,
-                                          uint32_t inactivityTimeoutMS)
-{
-    ChipLogDetail(ExchangeManager, "Entering CreateTunnel");
-    CHIP_ERROR err = CHIP_NO_ERROR;
-
-    VerifyOrExit(conOne.State == ChipConnection::kState_Connected && conTwo.State == ChipConnection::kState_Connected,
-                 err = CHIP_ERROR_INCORRECT_STATE);
-
-    *tunPtr = NewConnectionTunnel();
-    VerifyOrExit(*tunPtr != NULL, err = CHIP_ERROR_NO_MEMORY);
-
-    // Form ChipConnectionTunnel from former ChipConnections' TCPEndPoints.
-    err = (*tunPtr)->MakeTunnelConnected(conOne.mTcpEndPoint, conTwo.mTcpEndPoint);
-    SuccessOrExit(err);
-
-    ChipLogProgress(ExchangeManager, "Created CHIP tunnel from Cons (%04X, %04X) with EPs (%04X, %04X)", conOne.LogId(),
-                    conTwo.LogId(), conOne.mTcpEndPoint->LogId(), conTwo.mTcpEndPoint->LogId());
-
-    if (inactivityTimeoutMS > 0)
-    {
-        // Set TCPEndPoint inactivity timeouts.
-        conOne.mTcpEndPoint->SetIdleTimeout(inactivityTimeoutMS);
-        conTwo.mTcpEndPoint->SetIdleTimeout(inactivityTimeoutMS);
-    }
-
-    // Remove TCPEndPoints from ChipConnections now that we've handed the former to our new ChipConnectionTunnel.
-    conOne.mTcpEndPoint = NULL;
-    conTwo.mTcpEndPoint = NULL;
-
-exit:
-    ChipLogDetail(ExchangeManager, "Exiting CreateTunnel");
-
-    // Close ChipConnection args.
-    conOne.Close(true);
-    conTwo.Close(true);
-
-    return err;
-}
-
 CHIP_ERROR ChipMessageLayer::SetUnsecuredConnectionListener(ConnectionReceiveFunct newOnUnsecuredConnectionReceived,
                                                             CallbackRemovedFunct newOnUnsecuredConnectionCallbacksRemoved,
                                                             bool force, void * listenerState)
@@ -1140,7 +1013,7 @@ CHIP_ERROR ChipMessageLayer::DecodeHeader(PacketBuffer * msgBuf, ChipMessageInfo
     DecodeHeaderField(headerField, msgInfo);
 
     // Error if the message version is unsupported.
-    if (msgInfo->MessageVersion != kChipMessageVersion_V1 && msgInfo->MessageVersion != kChipMessageVersion_V2)
+    if (msgInfo->MessageVersion != kChipMessageVersion_V1)
     {
         ExitNow(err = CHIP_ERROR_UNSUPPORTED_MESSAGE_VERSION);
     }
@@ -1281,7 +1154,7 @@ CHIP_ERROR ChipMessageLayer::EncodeMessage(ChipMessageInfo * msgInfo, PacketBuff
     CHIP_ERROR err;
     uint8_t * p1;
     // Error if an unsupported message version requested.
-    if (msgInfo->MessageVersion != kChipMessageVersion_V1 && msgInfo->MessageVersion != kChipMessageVersion_V2)
+    if (msgInfo->MessageVersion != kChipMessageVersion_V1)
         return CHIP_ERROR_UNSUPPORTED_MESSAGE_VERSION;
 
     // Message already encoded, don't do anything
@@ -1355,8 +1228,7 @@ CHIP_ERROR ChipMessageLayer::EncodeMessage(ChipMessageInfo * msgInfo, PacketBuff
     uint8_t * p = payloadStart - headLen;
 
     // Allocate a new message identifier and write the message identifier field.
-    if ((msgInfo->Flags & kChipMessageFlag_ReuseMessageId) == 0)
-        msgInfo->MessageId = sessionState.NewMessageId();
+    msgInfo->MessageId = sessionState.NewMessageId();
 
 #if CHIP_CONFIG_USE_APP_GROUP_KEYS_FOR_MSG_ENC
     // Request message counter synchronization if peer group key counter is not synchronized.
@@ -1659,52 +1531,14 @@ void ChipMessageLayer::HandleUDPMessage(UDPEndPoint * endPoint, PacketBuffer * m
              ));
 #endif // CHIP_CONFIG_ENABLE_EPHEMERAL_UDP_PORT
 
-    // Check if message carries tunneled data and needs to be sent to Tunnel Agent
-    if (msgInfo.MessageVersion == kChipMessageVersion_V2)
+    // Call the supplied OnMessageReceived callback.
+    if (msgLayer->OnMessageReceived != NULL)
     {
-        if (msgInfo.Flags & kChipMessageFlag_TunneledData)
-        {
-#if CHIP_CONFIG_ENABLE_TUNNELING
-            // Policy for handling duplicate tunneled UDP message:
-            //  - Eliminate duplicate tunneled encrypted messages to prevent replay of messages by
-            //    a malicious man-in-the-middle.
-            //  - Handle duplicate tunneled unencrypted message.
-            // Dispatch the tunneled data message to the application if it is not a duplicate or unencrypted.
-            if (!(msgInfo.Flags & kChipMessageFlag_DuplicateMessage) || msgInfo.KeyId == ChipKeyId::kNone)
-            {
-                if (msgLayer->OnUDPTunneledMessageReceived)
-                {
-                    msgLayer->OnUDPTunneledMessageReceived(msgLayer, msg);
-                }
-                else
-                {
-                    ExitNow(err = CHIP_ERROR_NO_MESSAGE_HANDLER);
-                }
-            }
-#endif
-        }
-        else
-        {
-            // Call the supplied OnMessageReceived callback.
-            if (msgLayer->OnMessageReceived != NULL)
-            {
-                msgLayer->OnMessageReceived(msgLayer, &msgInfo, msg);
-            }
-            else
-            {
-                ExitNow(err = CHIP_ERROR_NO_MESSAGE_HANDLER);
-            }
-        }
+        msgLayer->OnMessageReceived(msgLayer, &msgInfo, msg);
     }
-    else if (msgInfo.MessageVersion == kChipMessageVersion_V1)
+    else
     {
-        // Call the supplied OnMessageReceived callback.
-        if (msgLayer->OnMessageReceived != NULL)
-            msgLayer->OnMessageReceived(msgLayer, &msgInfo, msg);
-        else
-        {
-            ExitNow(err = CHIP_ERROR_NO_MESSAGE_HANDLER);
-        }
+        ExitNow(err = CHIP_ERROR_NO_MESSAGE_HANDLER);
     }
 
 exit:
@@ -2210,19 +2044,15 @@ void ChipMessageLayer::ComputeIntegrityCheck_AES128CTRSHA1(const ChipMessageInfo
     Encoding::LittleEndian::Write64(p, msgInfo->SourceNodeId);
     Encoding::LittleEndian::Write64(p, msgInfo->DestNodeId);
 
-    // Hash the message header field and the message Id for the message version V2.
-    if (msgInfo->MessageVersion == kChipMessageVersion_V2)
-    {
-        // Encode message header field value.
-        uint16_t headerField = EncodeHeaderField(msgInfo);
+    // Encode message header field value.
+    uint16_t headerField = EncodeHeaderField(msgInfo);
 
-        // Mask destination and source node Id flags.
-        headerField &= kMsgHeaderField_MessageHMACMask;
+    // Mask destination and source node Id flags.
+    headerField &= kMsgHeaderField_MessageHMACMask;
 
-        // Encode the message header field and the message Id in a little-endian format.
-        Encoding::LittleEndian::Write16(p, headerField);
-        Encoding::LittleEndian::Write32(p, msgInfo->MessageId);
-    }
+    // Encode the message header field and the message Id in a little-endian format.
+    Encoding::LittleEndian::Write16(p, headerField);
+    Encoding::LittleEndian::Write32(p, msgInfo->MessageId);
 
     // Hash encoded message header fields.
     hmacSHA1.AddData(encodedBuf, p - encodedBuf);
@@ -2236,8 +2066,7 @@ void ChipMessageLayer::ComputeIntegrityCheck_AES128CTRSHA1(const ChipMessageInfo
 
 /**
  *  Close all open TCP and UDP endpoints. Then abort any
- *  open ChipConnections and shutdown any open
- *  ChipConnectionTunnel objects.
+ *  open ChipConnections
  *
  *  @note
  *    A call to CloseEndpoints() terminates all communication
@@ -2257,18 +2086,6 @@ CHIP_ERROR ChipMessageLayer::CloseEndpoints()
     for (int i = 0; i < CHIP_CONFIG_MAX_CONNECTIONS; i++, con++)
         if (con->mRefCount > 0)
             con->Abort();
-
-    // Shut down any open tunnels.
-    ChipConnectionTunnel * tun = static_cast<ChipConnectionTunnel *>(mTunnelPool);
-    for (int i = 0; i < CHIP_CONFIG_MAX_TUNNELS; i++, tun++)
-    {
-        if (tun->mMessageLayer != NULL)
-        {
-            // Suppress callback as we're shutting down the whole stack.
-            tun->OnShutdown = NULL;
-            tun->Shutdown();
-        }
-    }
 
     return CHIP_NO_ERROR;
 }

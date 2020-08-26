@@ -30,7 +30,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <core/CHIPTunnelConfig.h>
 #include <message/CHIPFabricState.h>
 #include <message/HostPortList.h>
 #include <support/DLLUtil.h>
@@ -73,11 +72,10 @@ enum
 
     kChipHeaderFlag_DestNodeId   = 0x0100, /**< Indicates that the destination node ID is present in the CHIP message header. */
     kChipHeaderFlag_SourceNodeId = 0x0200, /**< Indicates that the source node ID is present in the CHIP message header. */
-    kChipHeaderFlag_TunneledData = 0x0400, /**< Indicates that the CHIP message payload is a tunneled IP packet. */
     kChipHeaderFlag_MsgCounterSyncReq = 0x0800, /**< Indicates that the sender requests message counter synchronization. */
 
     kMsgHeaderField_ReservedFlagsMask = kMsgHeaderField_FlagsMask & ~kChipHeaderFlag_DestNodeId & ~kChipHeaderFlag_SourceNodeId &
-        ~kChipHeaderFlag_TunneledData & ~kChipHeaderFlag_MsgCounterSyncReq,
+        ~kChipHeaderFlag_MsgCounterSyncReq,
 
     kMsgHeaderField_MessageHMACMask =
         ~((kChipHeaderFlag_DestNodeId | kChipHeaderFlag_SourceNodeId | kChipHeaderFlag_MsgCounterSyncReq)
@@ -121,7 +119,6 @@ typedef struct ChipMessageInfo ChipMessageHeader;
  */
 typedef enum ChipMessageFlags
 {
-    kChipMessageFlag_ReuseMessageId = 0x00000010, /**< Indicates that the existing message identifier must be reused. */
     kChipMessageFlag_ReuseSourceId  = 0x00000020, /**< Indicates that the existing source node identifier must be reused. */
     kChipMessageFlag_DelaySend      = 0x00000040, /**< Indicates that the sending of the message needs to be delayed. */
     kChipMessageFlag_RetainBuffer   = 0x00000080, /**< Indicates that the message buffer should not be freed after sending. */
@@ -149,8 +146,6 @@ typedef enum ChipMessageFlags
     /**< Indicates that the destination node ID is present in the CHIP message header. */
     kChipMessageFlag_SourceNodeId = kChipHeaderFlag_SourceNodeId,
     /**< Indicates that the source node ID is present in the CHIP message header. */
-    kChipMessageFlag_TunneledData = kChipHeaderFlag_TunneledData,
-    /**< Indicates that the CHIP message payload is a tunneled IP packet. */
     kChipMessageFlag_MsgCounterSyncReq = kChipHeaderFlag_MsgCounterSyncReq,
     /**< Indicates that the sender requests peer's message counter synchronization. */
 
@@ -174,15 +169,13 @@ typedef enum ChipEncryptionType
  *
  *  @details
  *    CHIP will choose the appropriate message version based on the frame format required for the CHIP
- *    message. By default, the message version is kChipMessageVersion_V1. When using CHIP Reliable
- *    Messaging, for example, the version is kChipMessageVersion_V2.
+ *    message.
  *
  */
 typedef enum ChipMessageVersion
 {
     kChipMessageVersion_Unspecified = 0, /**< Unspecified message version. */
     kChipMessageVersion_V1          = 1, /**< Message header format version V1. */
-    kChipMessageVersion_V2          = 2  /**< Message header format version V2. */
 } ChipMessageVersion;
 
 /**
@@ -277,12 +270,6 @@ public:
     void GetPeerDescription(char * buf, size_t bufSize) const;
 
     CHIP_ERROR SendMessage(ChipMessageInfo * msgInfo, PacketBuffer * msgBuf);
-#if CHIP_CONFIG_ENABLE_TUNNELING
-    /**
-     * Function to send a Tunneled packet over a CHIP connection.
-     */
-    CHIP_ERROR SendTunneledMessage(ChipMessageInfo * msgInfo, PacketBuffer * msgBuf);
-#endif
 
     // TODO COM-311: implement EnableReceived/DisableReceive for BLE ChipConnections.
     void EnableReceive(void);
@@ -343,22 +330,6 @@ public:
      */
     typedef void (*MessageReceiveFunct)(ChipConnection * con, ChipMessageInfo * msgInfo, PacketBuffer * msgBuf);
     MessageReceiveFunct OnMessageReceived;
-
-#if CHIP_CONFIG_ENABLE_TUNNELING
-    /**
-     *  This function is the application callback that is invoked upon receipt of a Tunneled data packet over the
-     *  CHIP connection.
-     *
-     *  @param[in]     con            A pointer to the ChipConnection object.
-     *
-     *  @param[in]     msgInfo        A pointer to the ChipMessageInfo object.
-     *
-     *  @param[in]     msgBuf         A pointer to the PacketBuffer object containing the tunneled packet received.
-     *
-     */
-    typedef void (*TunneledMsgReceiveFunct)(ChipConnection * con, const ChipMessageInfo * msgInfo, PacketBuffer * msgBuf);
-    TunneledMsgReceiveFunct OnTunneledMessageReceived;
-#endif
 
     /**
      *  This function is the application callback invoked upon encountering an error when receiving
@@ -436,48 +407,6 @@ private:
     static void HandleBleMessageReceived(BLEEndPoint * endPoint, System::PacketBuffer * data);
     static void HandleBleConnectionClosed(BLEEndPoint * endPoint, BLE_ERROR err);
 #endif
-};
-
-/**
- *  @class ChipConnectionTunnel
- *
- *  @brief
- *    The definition of the ChipConnectionTunnel class, which manages a pair of TCPEndPoints
- *    whose original ChipConnections have been coupled, and between which the ChipMessageLayer
- *    forwards all data and connection closures.
- */
-class ChipConnectionTunnel
-{
-    friend class ChipMessageLayer;
-
-public:
-    uint16_t LogId(void) const { return (uint16_t)((intptr_t) this); }
-    void Shutdown(void);
-
-    /**
-     *  This function is the application callback that is invoked when the CHIP connection tunnel is shut down.
-     *
-     *  @param[in]    tun    A pointer to the ChipConnectionTunnel object.
-     *
-     */
-    typedef void (*ShutdownFunct)(ChipConnectionTunnel * tun);
-    ShutdownFunct OnShutdown;
-
-    void * AppState; /**< A pointer to application-specific state object. */
-
-private:
-    ChipMessageLayer * mMessageLayer;
-    TCPEndPoint * mEPOne;
-    TCPEndPoint * mEPTwo;
-
-    void Init(ChipMessageLayer * messageLayer);
-    CHIP_ERROR MakeTunnelConnected(TCPEndPoint * endpointOne, TCPEndPoint * endpointTwo);
-    void CloseEndPoint(TCPEndPoint ** endPoint);
-    inline bool IsInUse(void) const { return mMessageLayer != NULL; };
-
-    static void HandleTunnelDataReceived(TCPEndPoint * endPoint, PacketBuffer * data);
-    static void HandleTunnelConnectionClosed(TCPEndPoint * endPoint, INET_ERROR err);
-    static void HandleReceiveShutdown(TCPEndPoint * endPoint);
 };
 
 /**
@@ -560,6 +489,8 @@ public:
     };
 
     ChipMessageLayer(void);
+    ChipMessageLayer(const ChipMessageLayer &) = delete;
+    ChipMessageLayer & operator=(const ChipMessageLayer &) = delete;
 
     System::Layer * SystemLayer;       /*** [READ ONLY] The associated SystemLayer object. */
     InetLayer * Inet;                  /**< [READ ONLY] The associated InetLayer object. */
@@ -586,19 +517,10 @@ public:
     CHIP_ERROR ResendMessage(const IPAddress & destAddr, uint16_t destPort, ChipMessageInfo * msgInfo, PacketBuffer * msgBuf);
     CHIP_ERROR ResendMessage(const IPAddress & destAddr, uint16_t destPort, InterfaceId interfaceId, ChipMessageInfo * msgInfo,
                              PacketBuffer * msgBuf);
-#if CHIP_CONFIG_ENABLE_TUNNELING
-    /**
-     *  Function to send a Tunneled packet over a local UDP tunnel.
-     */
-    CHIP_ERROR SendUDPTunneledMessage(const IPAddress & destAddr, ChipMessageInfo * msgInfo, PacketBuffer * msgBuf);
-#endif
+
     ChipConnection * NewConnection(void);
-    ChipConnectionTunnel * NewConnectionTunnel(void);
 
     void GetConnectionPoolStats(chip::System::Stats::count_t & aOutInUse) const;
-
-    CHIP_ERROR CreateTunnel(ChipConnectionTunnel ** tunPtr, ChipConnection & conOne, ChipConnection & conTwo,
-                            uint32_t inactivityTimeoutMS);
 
     /**
      *  This function is the higher layer callback that is invoked upon receipt of a CHIP message over UDP.
@@ -607,25 +529,11 @@ public:
      *
      *  @param[in]     msgInfo        A pointer to the ChipMessageInfo object.
      *
-     *  @param[in]     payload        Pointer to PacketBuffer message containing tunneled packet received.
+     *  @param[in]     payload        Pointer to PacketBuffer message containing packet received.
      *
      */
     typedef void (*MessageReceiveFunct)(ChipMessageLayer * msgLayer, ChipMessageInfo * msgInfo, PacketBuffer * payload);
     MessageReceiveFunct OnMessageReceived;
-
-#if CHIP_CONFIG_ENABLE_TUNNELING
-    /**
-     *  This function is the higher layer callback that is invoked upon receipt of a Tunneled packet over a local
-     *  UDP tunnel.
-     *
-     *  @param[in]     msgLayer       A pointer to the ChipMessageLayer object.
-     *
-     *  @param[in]     payload        Pointer to PacketBuffer message containing tunneled packet received.
-     *
-     */
-    typedef void (*TunneledMsgReceiveFunct)(ChipMessageLayer * msgLayer, PacketBuffer * payload);
-    TunneledMsgReceiveFunct OnUDPTunneledMessageReceived;
-#endif
 
     /**
      *  This function is the higher layer callback invoked upon encountering an error.
@@ -739,7 +647,6 @@ private:
     TCPEndPoint * mIPv6TCPListen;
     UDPEndPoint * mIPv6UDP;
     ChipConnection mConPool[CHIP_CONFIG_MAX_CONNECTIONS];
-    ChipConnectionTunnel mTunnelPool[CHIP_CONFIG_MAX_TUNNELS];
     uint8_t mFlags;
 
 #if CHIP_CONFIG_ENABLE_TARGETED_LISTEN
@@ -809,8 +716,6 @@ private:
     static bool IsIgnoredMulticastSendError(CHIP_ERROR err);
 
     static bool IsSendErrorNonCritical(CHIP_ERROR err);
-
-    ChipMessageLayer(const ChipMessageLayer &); // not defined
 
 #if CONFIG_NETWORK_LAYER_BLE
 public:

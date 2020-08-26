@@ -68,11 +68,6 @@ config("inet_config") {
   } else {
     defines += [ "INET_CONFIG_ENABLE_TCP_ENDPOINT=0" ]
   }
-  if (chip_inet_config_enable_tun_endpoint) {
-    defines += [ "INET_CONFIG_ENABLE_TUN_ENDPOINT=1" ]
-  } else {
-    defines += [ "INET_CONFIG_ENABLE_TUN_ENDPOINT=0" ]
-  }
   if (chip_inet_config_enable_udp_endpoint) {
     defines += [ "INET_CONFIG_ENABLE_UDP_ENDPOINT=1" ]
   } else {
@@ -161,15 +156,16 @@ static_library("inet") {
     ]
   }
 
-  if (chip_inet_config_enable_tun_endpoint) {
-    sources += [
-      "TunEndPoint.cpp",
-      "TunEndPoint.h",
-    ]
-  }
-
   if (chip_with_nlfaultinjection) {
     sources += [ "InetFaultInjection.cpp" ]
     public_deps += [ "${nlfaultinjection_root}:nlfaultinjection" ]
+  }
+
+  include_dirs = []
+  if (current_os == "android") {
+    include_dirs += [
+      "${chip_root}/third_party/android/platform-libcore/android-platform-libcore/luni/src/main/native",
+      "${chip_root}/third_party/android/platform-libcore/android-platform-libcore/include",
+    ]
   }
 }

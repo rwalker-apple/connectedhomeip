@@ -29,7 +29,7 @@
 #include <message/CHIPBinding.h>
 #include <message/CHIPFabricState.h>
 #include <message/CHIPMessageLayer.h>
-#include <message/CHIPWRMPConfig.h>
+#include <message/CHIPRMPConfig.h>
 #include <support/DLLUtil.h>
 #include <system/SystemTimer.h>
 
@@ -44,26 +44,6 @@ class ChipExchangeManager;
 class ChipMessageLayer;
 class ChipConnection;
 class Binding;
-
-/**
- *  @def CHIP_TRICKLE_DEFAULT_PERIOD
- *
- *  @brief
- *    Defines Trickle algorithm's default period (in milliseconds) for periodic
- *    transmissions.
- *
- */
-#define CHIP_TRICKLE_DEFAULT_PERIOD 1000
-
-/**
- *  @def CHIP_TRICKLE_DEFAULT_THRESHOLD
- *
- *  @brief
- *    Defines Trickle algorithm's default value for the maximum number of received
- *    duplicate messages to wait before retransmission.
- *
- */
-#define CHIP_TRICKLE_DEFAULT_THRESHOLD 2
 
 /**
  *  @class ChipExchangeHeader
@@ -139,22 +119,20 @@ public:
     uint32_t RetransInterval; /**< Time between retransmissions (in milliseconds); 0 disables retransmissions. */
     Timeout ResponseTimeout;  /**< Maximum time to wait for response (in milliseconds); 0 disables response timeout. */
 #if CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
-    WRMPConfig mWRMPConfig; /**< WRMP configuration. */
+    RMPConfig mRMPConfig; /**< RMP configuration. */
 #endif
     enum
     {
-        kSendFlag_AutoRetrans           = 0x0001, /**< Used to indicate that automatic retransmission is enabled. */
-        kSendFlag_ExpectResponse        = 0x0002, /**< Used to indicate that a response is expected within a specified timeout. */
-        kSendFlag_RetransmissionTrickle = 0x0004, /**< Used to indicate the requirement of retransmissions for Trickle. */
+        kSendFlag_AutoRetrans    = 0x0001, /**< Used to indicate that automatic retransmission is enabled. */
+        kSendFlag_ExpectResponse = 0x0002, /**< Used to indicate that a response is expected within a specified timeout. */
         kSendFlag_DelaySend      = 0x0008, /**< Used to indicate that the sending of the current message needs to be delayed. */
-        kSendFlag_ReuseMessageId = 0x0010, /**< Used to indicate that the message ID in the message header can be reused. */
         kSendFlag_ReuseSourceId  = 0x0020, /**< Used to indicate that the source node ID in the message header can be reused. */
         kSendFlag_RetainBuffer   = 0x0040, /**< Used to indicate that the message buffer should not be freed after sending. */
         kSendFlag_AlreadyEncoded = 0x0080, /**< Used to indicate that the message is already encoded. */
         kSendFlag_DefaultMulticastSourceAddress = 0x0100, /**< Used to indicate that default IPv6 source address selection should be
                                                              used when sending IPv6 multicast messages. */
         kSendFlag_FromInitiator    = 0x0200, /**< Used to indicate that the current message is the initiator of the exchange. */
-        kSendFlag_RequestAck       = 0x0400, /**< Used to send a WRM message requesting an acknowledgment. */
+        kSendFlag_RequestAck       = 0x0400, /**< Used to send a RMP message requesting an acknowledgment. */
         kSendFlag_NoAutoRequestAck = 0x0800, /**< Suppress the auto-request acknowledgment feature when sending a message. */
 
         kSendFlag_MulticastFromLinkLocal = kSendFlag_DefaultMulticastSourceAddress,
@@ -175,7 +153,7 @@ public:
     void SetPeerRequestedAck(bool inPeerRequestedAck);
     bool HasRcvdMsgFromPeer(void) const;
     void SetMsgRcvdFromPeer(bool inMsgRcvdFromPeer);
-    CHIP_ERROR WRMPFlushAcks(void);
+    CHIP_ERROR RMPFlushAcks(void);
     uint32_t GetCurrentRetransmitTimeout(void);
 #endif
     void SetResponseExpected(bool inResponseExpected);
@@ -197,9 +175,6 @@ public:
     CHIP_ERROR SendCommonNullMessage(void);
     CHIP_ERROR EncodeExchHeader(ChipExchangeHeader * exchangeHeader, uint32_t profileId, uint8_t msgType, PacketBuffer * msgBuf,
                                 uint16_t sendFlags);
-    void TeardownTrickleRetransmit(void);
-    CHIP_ERROR SetupTrickleRetransmit(uint32_t retransInterval = CHIP_TRICKLE_DEFAULT_PERIOD,
-                                      uint8_t threshold = CHIP_TRICKLE_DEFAULT_THRESHOLD, uint32_t timeout = 0);
 
     /**
      * This function is the application callback for handling a received CHIP message.
@@ -272,11 +247,10 @@ public:
     KeyErrorFunct OnKeyError;
 
     void CancelRetrans(void);
-    void HandleTrickleMessage(const IPPacketInfo * pktInfo, const ChipMessageInfo * msgInfo);
 
 #if CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
-    CHIP_ERROR WRMPSendThrottleFlow(uint32_t PauseTimeMillis);
-    CHIP_ERROR WRMPSendDelayedDelivery(uint32_t PauseTimeMillis, uint64_t DelayedNodeId);
+    CHIP_ERROR RMPSendThrottleFlow(uint32_t PauseTimeMillis);
+    CHIP_ERROR RMPSendDelayedDelivery(uint32_t PauseTimeMillis, uint64_t DelayedNodeId);
 
     /**
      * This function is the application callback to invoke when an Acknowledgment is received
@@ -288,7 +262,7 @@ public:
      *                              the original message being acknowledged.
      *
      */
-    typedef void (*WRMPAckRcvdFunct)(ExchangeContext * ec, void * msgCtxt);
+    typedef void (*RMPAckRcvdFunct)(ExchangeContext * ec, void * msgCtxt);
 
     /**
      * This function is the application callback to invoke when a Throttle message or Delayed
@@ -301,7 +275,7 @@ public:
      *  @param[in]    pauseTime     Time to pause transmission (in milliseconds).
      *
      */
-    typedef void (*WRMPPauseRcvdFunct)(ExchangeContext * ec, uint32_t pauseTime);
+    typedef void (*RMPPauseRcvdFunct)(ExchangeContext * ec, uint32_t pauseTime);
 
     /**
      * This function is the application callback to invoke when an error is encountered while
@@ -316,13 +290,13 @@ public:
      *                              the original message being reported on.
      *
      */
-    typedef void (*WRMPSendErrorFunct)(ExchangeContext * ec, CHIP_ERROR err, void * msgCtxt);
+    typedef void (*RMPSendErrorFunct)(ExchangeContext * ec, CHIP_ERROR err, void * msgCtxt);
 
-    WRMPPauseRcvdFunct OnThrottleRcvd; /**< Application callback for received Throttle message. */
-    WRMPPauseRcvdFunct OnDDRcvd;       /**< Application callback for received Delayed Delivery message. */
-    WRMPSendErrorFunct OnSendError;    /**< Application callback for error while sending. */
-    WRMPAckRcvdFunct OnAckRcvd;        /**< Application callback for received acknowledgment. */
-#endif                                 // CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
+    RMPPauseRcvdFunct OnThrottleRcvd; /**< Application callback for received Throttle message. */
+    RMPPauseRcvdFunct OnDDRcvd;       /**< Application callback for received Delayed Delivery message. */
+    RMPSendErrorFunct OnSendError;    /**< Application callback for error while sending. */
+    RMPAckRcvdFunct OnAckRcvd;        /**< Application callback for received acknowledgment. */
+#endif                                // CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
 
     /*
      * in order to use reference counting (see refCount below)
@@ -334,7 +308,6 @@ public:
     void Close(void);
     void Abort(void);
     void Release(void);
-    CHIP_ERROR StartTimerT(void);
 
     enum
     {
@@ -347,19 +320,12 @@ public:
 
 private:
     PacketBuffer * msg; // If we are re-transmitting, then this is the pointer to the message being retransmitted
-    // Trickle-controlled retransmissions:
-    uint32_t backoff; // backoff for sampling the numner of messages
-    uint32_t currentBcastMsgID;
-    uint8_t msgsReceived;         // number of messages heard during the backoff period
-    uint8_t rebroadcastThreshold; // re-broadcast threshold
 
     uint16_t mFlags; // Internal state flags
 
     CHIP_ERROR ResendMessage(void);
     bool MatchExchange(ChipConnection * msgCon, const ChipMessageInfo * msgInfo, const ChipExchangeHeader * exchangeHeader);
-    static void TimerTau(System::Layer * aSystemLayer, void * aAppState, System::Error aError);
     static void CancelRetransmissionTimer(System::Layer * aSystemLayer, void * aAppState, System::Error aError);
-    static void TimerT(System::Layer * aSystemLayer, void * aAppState, System::Error aError);
 
     CHIP_ERROR StartResponseTimer(void);
     void CancelResponseTimer(void);
@@ -367,8 +333,8 @@ private:
 
     uint32_t mPendingPeerAckId;
 #if CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
-    uint16_t mWRMPNextAckTime;     // Next time for triggering Solo Ack
-    uint16_t mWRMPThrottleTimeout; // Timeout until when Throttle is On when WRMPThrottleEnabled is set
+    uint16_t mRMPNextAckTime;     // Next time for triggering Solo Ack
+    uint16_t mRMPThrottleTimeout; // Timeout until when Throttle is On when RMPThrottleEnabled is set
 #endif
     void DoClose(bool clearRetransTable);
     CHIP_ERROR HandleMessage(ChipMessageInfo * msgInfo, const ChipExchangeHeader * exchHeader, PacketBuffer * msgBuf);
@@ -377,9 +343,9 @@ private:
     void HandleConnectionClosed(CHIP_ERROR conErr);
 
 #if CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
-    bool WRMPCheckAndRemRetransTable(uint32_t msgId, void ** rCtxt);
-    CHIP_ERROR WRMPHandleRcvdAck(const ChipExchangeHeader * exchHeader, const ChipMessageInfo * msgInfo);
-    CHIP_ERROR WRMPHandleNeedsAck(const ChipMessageInfo * msgInfo);
+    bool RMPCheckAndRemRetransTable(uint32_t msgId, void ** rCtxt);
+    CHIP_ERROR RMPHandleRcvdAck(const ChipExchangeHeader * exchHeader, const ChipMessageInfo * msgInfo);
+    CHIP_ERROR RMPHandleNeedsAck(const ChipMessageInfo * msgInfo);
     CHIP_ERROR HandleThrottleFlow(uint32_t PauseTimeMillis);
 #endif
 
@@ -412,6 +378,8 @@ public:
     };
 
     ChipExchangeManager(void);
+    ChipExchangeManager(const ChipExchangeManager &) = delete;
+    ChipExchangeManager operator=(const ChipExchangeManager &) = delete;
 
     ChipMessageLayer * MessageLayer; /**< [READ ONLY] The associated ChipMessageLayer object. */
     ChipFabricState * FabricState;   /**< [READ ONLY] The associated FabricState object. */
@@ -458,9 +426,9 @@ public:
 private:
     uint16_t NextExchangeId;
 #if CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
-    uint64_t mWRMPTimeStampBase;                  // WRMP timer base value to add offsets to evaluate timeouts
-    System::Timer::Epoch mWRMPCurrentTimerExpiry; // Tracks when the WRM timer will next expire
-    uint16_t mWRMPTimerInterval;                  // WRMP Timer tick period
+    uint64_t mRMPTimeStampBase;                  // RMP timer base value to add offsets to evaluate timeouts
+    System::Timer::Epoch mRMPCurrentTimerExpiry; // Tracks when the RMP timer will next expire
+    uint16_t mRMPTimerInterval;                  // RMP Timer tick period
     /**
      *  @class RetransTableEntry
      *
@@ -481,14 +449,14 @@ private:
         uint16_t nextRetransTime;      /**< A counter representing the next retransmission time for the message. */
         uint8_t sendCount;             /**< A counter representing the number of times the message has been sent. */
     };
-    void WRMPExecuteActions(void);
-    void WRMPExpireTicks(void);
-    void WRMPStartTimer(void);
-    void WRMPStopTimer(void);
-    void WRMPProcessDDMessage(uint32_t PauseTimeMillis, uint64_t DelayedNodeId);
+    void RMPExecuteActions(void);
+    void RMPExpireTicks(void);
+    void RMPStartTimer(void);
+    void RMPStopTimer(void);
+    void RMPProcessDDMessage(uint32_t PauseTimeMillis, uint64_t DelayedNodeId);
     uint32_t GetTickCounterFromTimeDelta(uint64_t newTime, uint64_t oldTime);
-    static void WRMPTimeout(System::Layer * aSystemLayer, void * aAppState, System::Error aError);
-    static bool isLaterInWRMP(uint64_t t2, uint64_t t1);
+    static void RMPTimeout(System::Layer * aSystemLayer, void * aAppState, System::Error aError);
+    static bool isLaterInRMP(uint64_t t2, uint64_t t1);
     bool IsSendErrorCritical(CHIP_ERROR err) const;
     CHIP_ERROR AddToRetransTable(ExchangeContext * ec, PacketBuffer * inetBuff, uint32_t msgId, void * msgCtxt,
                                  RetransTableEntry ** rEntry);
@@ -500,8 +468,8 @@ private:
 
     void TicklessDebugDumpRetransTable(const char * log);
 
-    // WRMP Global tables for timer context
-    RetransTableEntry RetransTable[CHIP_CONFIG_WRMP_RETRANS_TABLE_SIZE];
+    // RMP Global tables for timer context
+    RetransTableEntry RetransTable[CHIP_CONFIG_RMP_RETRANS_TABLE_SIZE];
 #endif // CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
 
     class UnsolicitedMessageHandler
@@ -546,8 +514,6 @@ private:
 
     void NotifySecurityManagerAvailable();
     void NotifyKeyFailed(uint64_t peerNodeId, uint16_t keyId, CHIP_ERROR keyErr);
-
-    ChipExchangeManager(const ChipExchangeManager &); // not defined
 };
 
 #if !CHIP_CONFIG_ENABLE_EPHEMERAL_UDP_PORT

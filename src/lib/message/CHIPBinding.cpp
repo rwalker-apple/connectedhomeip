@@ -72,7 +72,7 @@ namespace chip {
  * Retrieve the IP address information for the peer, if available.
  *
  * The availability of the peer's IP address information depends on the state and configuration of the binding.
- * IP address information is only available when using an IP-based transport (TCP, UDP, or UDP with WRMP).  Prior to
+ * IP address information is only available when using an IP-based transport (TCP, UDP, or UDP with RMP).  Prior to
  * the start of preparation, address information is only available if it has been set expressly by the application
  * during configuration.  During the preparation phase, address information is available when address preparation
  * completes (e.g. after DNS resolution has completed).  After the Binding is ready, address information remains
@@ -116,20 +116,20 @@ namespace chip {
  */
 
 /**
- * @fn const WRMPConfig& Binding::GetDefaultWRMPConfig(void) const
+ * @fn const RMPConfig& Binding::GetDefaultRMPConfig(void) const
  *
- * Get the default WRMP configuration to be used when communicating with the peer.
+ * Get the default RMP configuration to be used when communicating with the peer.
  *
- * @return                          A reference to a WRMPConfig structure containing
+ * @return                          A reference to a RMPConfig structure containing
  *                                  the default configuration values.
  */
 
 /**
- * @fn void Binding::SetDefaultWRMPConfig(const WRMPConfig& aWRMPConfig)
+ * @fn void Binding::SetDefaultRMPConfig(const RMPConfig& aRMPConfig)
  *
- * Set the default WRMP configuration to be used when communicating with the peer.
+ * Set the default RMP configuration to be used when communicating with the peer.
  *
- * @param[in] aWRMPConfig           A reference to a WRMPConfig structure containing
+ * @param[in] aRMPConfig           A reference to a RMPConfig structure containing
  *                                  the new default configuration.
  */
 
@@ -445,7 +445,7 @@ void Binding::ResetConfig()
     mTransportOption            = kTransport_NotSpecified;
     mDefaultResponseTimeoutMsec = 0;
 #if CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
-    mDefaultWRMPConfig = gDefaultWRMPConfig;
+    mDefaultRMPConfig = gDefaultRMPConfig;
 #endif
     mUDPPathMTU = CHIP_CONFIG_DEFAULT_UDP_MTU_SIZE;
 
@@ -545,21 +545,21 @@ CHIP_ERROR Binding::DoPrepare(CHIP_ERROR configErr)
 #if CHIP_CONFIG_ENABLE_CASE_INITIATOR
     // Shared CASE session not supported over connection-oriented transports.
     VerifyOrExit(mSecurityOption != kSecurityOption_SharedCASESession || mTransportOption == kTransport_UDP ||
-                     mTransportOption == kTransport_UDP_WRM,
+                     mTransportOption == kTransport_UDP_RMP,
                  err = CHIP_ERROR_NOT_IMPLEMENTED);
 #endif
 
 #if CHIP_CONFIG_ENABLE_PASE_INITIATOR
     // PASE sessions not supported over UDP transports.
     VerifyOrExit(mSecurityOption != kSecurityOption_PASESession ||
-                     (mTransportOption != kTransport_UDP && mTransportOption != kTransport_UDP_WRM),
+                     (mTransportOption != kTransport_UDP && mTransportOption != kTransport_UDP_RMP),
                  err = CHIP_ERROR_NOT_IMPLEMENTED);
 #endif
 
 #if CHIP_CONFIG_ENABLE_TAKE_INITIATOR
     // TAKE sessions not supported over UDP transports.
     VerifyOrExit(mSecurityOption != kSecurityOption_TAKESession ||
-                     (mTransportOption != kTransport_UDP && mTransportOption != kTransport_UDP_WRM),
+                     (mTransportOption != kTransport_UDP && mTransportOption != kTransport_UDP_RMP),
                  err = CHIP_ERROR_NOT_IMPLEMENTED);
 #endif
 
@@ -726,105 +726,6 @@ void Binding::PrepareSecurity()
 
     switch (mSecurityOption)
     {
-#if CHIP_CONFIG_ENABLE_CASE_INITIATOR
-    case kSecurityOption_CASESession:
-    case kSecurityOption_SharedCASESession: {
-        IPAddress peerAddress;
-        uint16_t peerPort;
-        uint64_t terminatingNodeId;
-        const bool isSharedSession = (mSecurityOption == kSecurityOption_SharedCASESession);
-
-        if (isSharedSession)
-        {
-            // This is also defined in CHIP/Profiles/ServiceDirectory.h, but this is in CHIP Core
-            // TODO: move this to a common location.
-            static const uint64_t kServiceEndpoint_CoreRouter = 0x18B4300200000012ull;
-
-            const uint64_t fabricGlobalId = ChipFabricIdToIPv6GlobalId(mExchangeManager->FabricState->FabricId);
-            peerAddress                   = IPAddress::MakeULA(fabricGlobalId, chip::kChipSubnetId_Service,
-                                             chip::ChipNodeIdToIPv6InterfaceId(kServiceEndpoint_CoreRouter));
-            peerPort                      = CHIP_PORT;
-            terminatingNodeId             = kServiceEndpoint_CoreRouter;
-        }
-        else
-        {
-            peerAddress       = mPeerAddress;
-            peerPort          = mPeerPort;
-            terminatingNodeId = kNodeIdNotSpecified;
-        }
-
-        ChipLogDetail(ExchangeManager, "Binding[%" PRIu8 "] (%" PRIu16 "): Initiating %sCASE session", GetLogId(), mRefCount,
-                      isSharedSession ? "shared " : "");
-
-        mState = kState_PreparingSecurity_EstablishSession;
-
-        // Call the security manager to initiate the CASE session.  Note that security manager will call the
-        // OnSecureSessionReady function during this call if a shared session is requested and the session is
-        // already available.
-        err = sm->StartCASESession(mCon, mPeerNodeId, peerAddress, peerPort, mAuthMode, this, OnSecureSessionReady,
-                                   OnSecureSessionFailed, NULL, terminatingNodeId);
-        SuccessOrExit(err);
-    }
-    break;
-#endif // CHIP_CONFIG_ENABLE_CASE_INITIATOR
-
-#if CHIP_CONFIG_ENABLE_PASE_INITIATOR
-    case kSecurityOption_PASESession: {
-        InEventParam inParam;
-        OutEventParam outParam;
-
-        ChipLogDetail(ExchangeManager, "Binding[%" PRIu8 "] (%" PRIu16 "): Initiating PASE session", GetLogId(), mRefCount);
-
-        mState = kState_PreparingSecurity_EstablishSession;
-
-        // Call up to the application to get PASE parameters--essentially, the password.  Note that
-        // the application is free to ignore this event, resulting in this code passing NULL to the
-        // security manager which will then automatically choose the pairing code from the fabric
-        // state object.
-        // The application may NOT alter the state of the Binding during this callback.
-        inParam.Clear();
-        inParam.Source                                 = this;
-        inParam.PASEParametersRequested.PasswordSource = PasswordSourceFromAuthMode(mAuthMode);
-        outParam.Clear();
-        mAppEventCallback(AppState, kEvent_PASEParametersRequested, inParam, outParam);
-
-        // Call the security manager to initiate the PASE session.
-        err = sm->StartPASESession(mCon, mAuthMode, this, OnSecureSessionReady, OnSecureSessionFailed,
-                                   outParam.PASEParametersRequested.Password, outParam.PASEParametersRequested.PasswordLength);
-        SuccessOrExit(err);
-    }
-    break;
-#endif // CHIP_CONFIG_ENABLE_PASE_INITIATOR
-
-#if CHIP_CONFIG_ENABLE_TAKE_INITIATOR
-    case kSecurityOption_TAKESession: {
-        InEventParam inParam;
-        OutEventParam outParam;
-
-        ChipLogDetail(ExchangeManager, "Binding[%" PRIu8 "] (%" PRIu16 "): Initiating TAKE session", GetLogId(), mRefCount);
-
-        mState = kState_PreparingSecurity_EstablishSession;
-
-        // Call up to the application to get TAKE parameters.
-        // NOTE: The application may NOT alter the state of the Binding during this callback.
-        inParam.Clear();
-        inParam.Source = this;
-        outParam.Clear();
-        mAppEventCallback(AppState, kEvent_TAKEParametersRequested, inParam, outParam);
-
-        // Verify the application handled the event.
-        VerifyOrExit(!outParam.DefaultHandlerCalled, err = CHIP_ERROR_INVALID_TAKE_PARAMETER);
-
-        // Call the security manager to initiate the TAKE session.
-        err = sm->StartTAKESession(
-            mCon, mAuthMode, this, OnSecureSessionReady, OnSecureSessionFailed, outParam.TAKEParametersRequested.EncryptAuthPhase,
-            outParam.TAKEParametersRequested.EncryptCommPhase, outParam.TAKEParametersRequested.TimeLimitedIK,
-            outParam.TAKEParametersRequested.SendChallengerId, outParam.TAKEParametersRequested.AuthDelegate);
-        SuccessOrExit(err);
-    }
-    break;
-#endif // CHIP_CONFIG_ENABLE_TAKE_INITIATOR
-
     case kSecurityOption_SpecificKey:
 
         // Add a reservation on the specified key.  This reservation will be owned by the binding
@@ -887,8 +788,8 @@ void Binding::HandleBindingReady()
         case kTransport_UDP:
             transport = "UDP";
             break;
-        case kTransport_UDP_WRM:
-            transport = "WRM";
+        case kTransport_UDP_RMP:
+            transport = "RMP";
             break;
         case kTransport_TCP:
         case kTransport_ExistingConnection:
@@ -1236,7 +1137,7 @@ bool Binding::IsAuthenticMessageFromPeer(const chip::ChipMessageHeader * msgInfo
     }
     else
     {
-        if (mTransportOption != kTransport_UDP && mTransportOption != kTransport_UDP_WRM)
+        if (mTransportOption != kTransport_UDP && mTransportOption != kTransport_UDP_RMP)
             return false;
     }
 
@@ -1252,7 +1153,7 @@ bool Binding::IsAuthenticMessageFromPeer(const chip::ChipMessageHeader * msgInfo
 /**
  *  Get the max CHIP payload size that can fit inside the supplied PacketBuffer.
  *
- *  For UDP, including UDP with WRM, the maximum payload size returned will
+ *  For UDP, including UDP with RMP, the maximum payload size returned will
  *  ensure the resulting CHIP message will not overflow the configured UDP MTU.
  *
  *  Additionally, this method will ensure the CHIP payload will not overflow
@@ -1268,7 +1169,7 @@ uint32_t Binding::GetMaxChipPayloadSize(const System::PacketBuffer * msgBuf)
     // Constrain the max CHIP payload size by the UDP MTU if we are using UDP.
     // TODO: Eventually, we may configure a custom UDP MTU size on the binding
     //       instead of using the default value directly.
-    bool isUDP = (mTransportOption == kTransport_UDP || mTransportOption == kTransport_UDP_WRM);
+    bool isUDP = (mTransportOption == kTransport_UDP || mTransportOption == kTransport_UDP_RMP);
     return ChipMessageLayer::GetMaxChipPayloadSize(msgBuf, isUDP, mUDPPathMTU);
 }
 
@@ -1318,11 +1219,11 @@ CHIP_ERROR Binding::NewExchangeContext(chip::ExchangeContext *& appExchangeConte
 
 #if CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
 
-    // Set the default WRMP configuration in the new exchange.
-    appExchangeContext->mWRMPConfig = mDefaultWRMPConfig;
+    // Set the default RMP configuration in the new exchange.
+    appExchangeContext->mRMPConfig = mDefaultRMPConfig;
 
     // If CHIP reliable messaging was expressly requested as a transport...
-    if (mTransportOption == kTransport_UDP_WRM)
+    if (mTransportOption == kTransport_UDP_RMP)
     {
         // Enable the auto-request ACK feature in the exchange so that all outgoing messages
         // include a request for acknowledgment.
@@ -1628,10 +1529,10 @@ Binding::Configuration & Binding::Configuration::Transport_UDP()
  *
  * @return                              A reference to the binding object.
  */
-Binding::Configuration & Binding::Configuration::Transport_UDP_WRM()
+Binding::Configuration & Binding::Configuration::Transport_UDP_RMP()
 {
 #if CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
-    mBinding.mTransportOption = kTransport_UDP_WRM;
+    mBinding.mTransportOption = kTransport_UDP_RMP;
 #else  // CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
     mError = CHIP_ERROR_NOT_IMPLEMENTED;
 #endif // CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
@@ -1653,18 +1554,18 @@ Binding::Configuration & Binding::Configuration::Transport_UDP_PathMTU(uint32_t 
 }
 
 /**
- * Set the default WRMP configuration for exchange contexts created from this Binding object.
+ * Set the default RMP configuration for exchange contexts created from this Binding object.
  *
- * @param[in] aWRMPConfig               A reference to the new default WRMP configuration.
+ * @param[in] aRMPConfig               A reference to the new default RMP configuration.
  *
  * @return                              A reference to the binding object.
  */
-Binding::Configuration & Binding::Configuration::Transport_DefaultWRMPConfig(const chip::WRMPConfig & aWRMPConfig)
+Binding::Configuration & Binding::Configuration::Transport_DefaultRMPConfig(const chip::RMPConfig & aRMPConfig)
 {
 #if CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
-    mBinding.mDefaultWRMPConfig = aWRMPConfig;
+    mBinding.mDefaultRMPConfig = aRMPConfig;
 #else  // CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
-    IgnoreUnusedVariable(aWRMPConfig);
+    IgnoreUnusedVariable(aRMPConfig);
     mError = CHIP_ERROR_NOT_IMPLEMENTED;
 #endif // CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
     return *this;
@@ -1940,7 +1841,7 @@ Binding::Configuration & Binding::Configuration::ConfigureFromMessage(const chip
         if (aMsgInfo->Flags & kChipMessageFlag_PeerRequestedAck)
         {
 #if CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING
-            Transport_UDP_WRM();
+            Transport_UDP_RMP();
 #else
             mError = CHIP_ERROR_NOT_IMPLEMENTED;
 #endif // #if CHIP_CONFIG_ENABLE_RELIABLE_MESSAGING

@@ -17,7 +17,7 @@
 
 #import <Foundation/Foundation.h>
 
-#include "chip-zcl/chip-zcl-zpro-codec.h"
+#include <app/chip-zcl-zpro-codec.h>
 
 #import "CHIPDeviceController.h"
 #import "CHIPError.h"
@@ -52,14 +52,17 @@ constexpr chip::NodeId kRemoteDeviceId = 12344321;
 // queue used to call select on the system and inet layer fds., remove this with NW Framework.
 // primarily used to not block the work queue
 @property (atomic, readonly) dispatch_queue_t chipSelectQueue;
-// queue used to signal callbacks to the application
-@property (readwrite) dispatch_queue_t appCallbackQueue;
-@property (readwrite) ControllerOnConnectedBlock onConnectedHandler;
-@property (readwrite) ControllerOnMessageBlock onMessageHandler;
-@property (readwrite) ControllerOnErrorBlock onErrorHandler;
+/**
+ *  The Controller delegate.
+ *  Note: Getter is not thread safe.
+ */
+@property (readonly, weak, nonatomic) id<CHIPDeviceControllerDelegate> delegate;
+
+/**
+ * The delegate queue where delegate callbacks will run
+ */
+@property (readonly, nonatomic) dispatch_queue_t delegateQueue;
 @property (readonly) chip::DeviceController::ChipDeviceController * cppController;
-@property (readwrite) NSData * localKey;
-@property (readwrite) NSData * peerKey;
 
 @end
 
@@ -110,13 +113,6 @@ static void onConnected(
     [controller _dispatchAsyncConnectBlock];
 }
 
-static void doKeyExchange(
-    chip::DeviceController::ChipDeviceController * cppController, chip::Transport::PeerConnectionState * state, void * appReqState)
-{
-    CHIPDeviceController * controller = (__bridge CHIPDeviceController *) appReqState;
-    [controller _manualKeyExchange:state];
-}
-
 static void onMessageReceived(
     chip::DeviceController::ChipDeviceController * deviceController, void * appReqState, chip::System::PacketBuffer * buffer)
 {
@@ -150,68 +146,48 @@ static void onInternalError(chip::DeviceController::ChipDeviceController * devic
 - (void)_dispatchAsyncErrorBlock:(NSError *)error
 {
     CHIP_LOG_METHOD_ENTRY();
-    // to avoid retaining "self"
-    ControllerOnErrorBlock onErrorHandler = self.onErrorHandler;
 
-    dispatch_async(_appCallbackQueue, ^() {
-        onErrorHandler(error);
-    });
+    id<CHIPDeviceControllerDelegate> strongDelegate = [self delegate];
+    if (strongDelegate && [self delegateQueue]) {
+        dispatch_async(self.delegateQueue, ^{
+            [strongDelegate deviceControllerOnError:error];
+        });
+    }
 }
 
 - (void)_dispatchAsyncMessageBlock:(NSData *)data
 {
     CHIP_LOG_METHOD_ENTRY();
-    // to avoid retaining "self"
-    ControllerOnMessageBlock onMessageHandler = self.onMessageHandler;
 
-    dispatch_async(_appCallbackQueue, ^() {
-        onMessageHandler(data);
-    });
+    id<CHIPDeviceControllerDelegate> strongDelegate = [self delegate];
+    if (strongDelegate && [self delegateQueue]) {
+        dispatch_async(self.delegateQueue, ^{
+            [strongDelegate deviceControllerOnMessage:data];
+        });
+    }
 }
 
 - (void)_dispatchAsyncConnectBlock
 {
     CHIP_LOG_METHOD_ENTRY();
-    // to avoid retaining "self"
-    ControllerOnConnectedBlock onConnectedHandler = self.onConnectedHandler;
 
-    dispatch_async(_appCallbackQueue, ^() {
-        onConnectedHandler();
-    });
-}
-
-- (void)_manualKeyExchange:(chip::Transport::PeerConnectionState *)state
-{
-    [self.lock lock];
-    const unsigned char * local_key_bytes = (const unsigned char *) [self.localKey bytes];
-    const unsigned char * peer_key_bytes = (const unsigned char *) [self.peerKey bytes];
-
-    CHIP_ERROR err
-        = self.cppController->ManualKeyExchange(state, peer_key_bytes, self.peerKey.length, local_key_bytes, self.localKey.length);
-    [self.lock unlock];
-
-    if (err != CHIP_NO_ERROR) {
-        CHIP_LOG_ERROR("Failed to exchange keys");
-        [self _dispatchAsyncErrorBlock:[CHIPError errorForCHIPErrorCode:err]];
+    id<CHIPDeviceControllerDelegate> strongDelegate = [self delegate];
+    if (strongDelegate && [self delegateQueue]) {
+        dispatch_async(self.delegateQueue, ^{
+            [strongDelegate deviceControllerOnConnected];
+        });
     }
 }
 
-- (BOOL)connect:(NSString *)ipAddress
-      local_key:(NSData *)local_key
-       peer_key:(NSData *)peer_key
-          error:(NSError * __autoreleasing *)error
+- (BOOL)connect:(NSString *)ipAddress error:(NSError * __autoreleasing *)error
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
-
-    // cache the keys before calling connect (because connect invokes the manual key exchange)
-    self.localKey = local_key.copy;
-    self.peerKey = peer_key.copy;
 
     [self.lock lock];
     chip::Inet::IPAddress addr;
     chip::Inet::IPAddress::FromString([ipAddress UTF8String], addr);
     err = self.cppController->ConnectDevice(
-        kRemoteDeviceId, addr, (__bridge void *) self, doKeyExchange, onMessageReceived, onInternalError, CHIP_PORT);
+        kRemoteDeviceId, addr, (__bridge void *) self, nil, onMessageReceived, onInternalError, CHIP_PORT);
     [self.lock unlock];
 
     if (err != CHIP_NO_ERROR) {
@@ -443,15 +419,17 @@ static void onInternalError(chip::DeviceController::ChipDeviceController * devic
     return [NSString stringWithFormat:@"Sending '%@' command %@", command, status];
 }
 
-- (void)registerCallbacks:appCallbackQueue
-              onConnected:(ControllerOnConnectedBlock)onConnected
-                onMessage:(ControllerOnMessageBlock)onMessage
-                  onError:(ControllerOnErrorBlock)onError
+- (void)setDelegate:(id<CHIPDeviceControllerDelegate>)delegate queue:(dispatch_queue_t)queue
 {
-    self.appCallbackQueue = appCallbackQueue;
-    self.onConnectedHandler = onConnected;
-    self.onMessageHandler = onMessage;
-    self.onErrorHandler = onError;
+    [self.lock lock];
+    if (delegate && queue) {
+        self->_delegate = delegate;
+        self->_delegateQueue = queue;
+    } else {
+        self->_delegate = nil;
+        self->_delegateQueue = NULL;
+    }
+    [self.lock unlock];
 }
 
 @end
